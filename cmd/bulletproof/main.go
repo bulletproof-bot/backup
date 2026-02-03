@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/bulletproof-bot/backup/internal/commands"
+	"github.com/bulletproof-bot/backup/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +29,7 @@ func main() {
 	rootCmd.AddCommand(commands.NewDiffCommand())
 	rootCmd.AddCommand(commands.NewHistoryCommand())
 	rootCmd.AddCommand(commands.NewConfigCommand())
+	rootCmd.AddCommand(commands.NewVersionCommand())
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {
@@ -39,4 +41,7 @@ func main() {
 		}
 		os.Exit(1)
 	}
+
+	// Check for updates after successful command (async, non-blocking)
+	go version.PrintUpdateNotice()
 }

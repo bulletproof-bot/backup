@@ -18,13 +18,122 @@ Your agent changes over time — skills get added, personality drifts, memories 
 - System prompts
 - Configuration
 
-## Status
+## Installation
 
-🚧 **Coming soon** — We're actively building this. Star the repo to get notified when we ship.
+### From Release (Recommended)
 
-## Get notified
+Download the latest release for your platform:
 
-Sign up at [bulletproof.bot](https://bulletproof.bot) to hear when we release.
+**macOS (Apple Silicon):**
+```bash
+curl -L https://github.com/bulletproof-bot/backup/releases/latest/download/bulletproof_darwin_arm64.tar.gz | tar xz
+sudo mv bulletproof /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+curl -L https://github.com/bulletproof-bot/backup/releases/latest/download/bulletproof_darwin_amd64.tar.gz | tar xz
+sudo mv bulletproof /usr/local/bin/
+```
+
+**Linux:**
+```bash
+curl -L https://github.com/bulletproof-bot/backup/releases/latest/download/bulletproof_linux_amd64.tar.gz | tar xz
+sudo mv bulletproof /usr/local/bin/
+```
+
+**Windows:**
+Download the `.zip` file from [releases](https://github.com/bulletproof-bot/backup/releases/latest) and extract `bulletproof.exe` to your PATH.
+
+### From Source
+
+Requires Go 1.21 or later:
+
+```bash
+git clone https://github.com/bulletproof-bot/backup.git
+cd backup
+make build
+sudo cp bin/bulletproof /usr/local/bin/
+```
+
+## Quick Start
+
+### 1. Initialize configuration
+
+```bash
+bulletproof init
+```
+
+This will guide you through setting up backup destinations (local folder, git repo, or sync folder).
+
+### 2. Create your first backup
+
+```bash
+bulletproof backup -m "Initial backup"
+```
+
+### 3. View backup history
+
+```bash
+bulletproof history
+```
+
+### 4. See what changed
+
+```bash
+bulletproof diff
+```
+
+### 5. Restore to a previous version
+
+```bash
+bulletproof restore <snapshot-id>
+```
+
+## Commands
+
+- `bulletproof init` - Interactive setup wizard
+- `bulletproof backup` - Create a new backup snapshot
+- `bulletproof restore <id>` - Restore to a specific snapshot
+- `bulletproof diff` - Show changes since last backup
+- `bulletproof history` - List all backup snapshots
+- `bulletproof config` - View or modify configuration
+- `bulletproof version` - Show version information
+
+Run `bulletproof --help` for detailed command usage.
+
+## Configuration
+
+Config file: `~/.config/bulletproof/config.yaml`
+
+### Backup Destinations
+
+- **Local**: Timestamped folders on your filesystem
+- **Git**: Git repository with commit history and tags (supports remote push)
+- **Sync**: Non-timestamped folder for cloud sync services (Dropbox, Google Drive, etc.)
+
+### Default Exclusions
+
+The following patterns are excluded from backups by default:
+- `*.log`
+- `node_modules/`
+- `.git/`
+- Temporary and cache files
+
+## Development
+
+See [CLAUDE.md](CLAUDE.md) for development setup, architecture details, and contribution guidelines.
+
+```bash
+# Build
+make build
+
+# Run tests
+make test
+
+# Run all checks (format, vet, lint, test)
+make check
+```
 
 ## License
 

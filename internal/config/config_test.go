@@ -97,11 +97,11 @@ func TestSave_Load_RoundTrip(t *testing.T) {
 
 func TestScheduleConfig_HourMinute(t *testing.T) {
 	tests := []struct {
-		name        string
-		time        string
-		wantHour    int
-		wantMinute  int
-		wantErr     bool
+		name       string
+		time       string
+		wantHour   int
+		wantMinute int
+		wantErr    bool
 	}{
 		{
 			name:       "valid time",

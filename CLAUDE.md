@@ -15,7 +15,22 @@ make build
 # Install to GOPATH/bin
 make install
 
+# Run all checks (format, vet, lint, test) - use before committing
+make check
+
+# Format code
+make fmt
+go fmt ./...
+
+# Run go vet
+make vet
+go vet ./...
+
+# Run linter (requires golangci-lint)
+make lint
+
 # Run all tests
+make test
 go test ./...
 
 # Run tests for a specific package
@@ -27,6 +42,9 @@ go test -v ./...
 
 # Run tests with coverage
 go test -cover ./...
+
+# Run tests with race detection
+go test -race ./...
 
 # Cross-compile for all platforms
 make build-all
@@ -142,6 +160,111 @@ Deferred/removed:
 - `github.com/spf13/cobra` - CLI framework for command structure
 - `gopkg.in/yaml.v3` - YAML config parsing
 - `github.com/go-git/go-git/v5` - Pure Go git implementation
+
+## Go Idioms and Best Practices
+
+### Code Quality Tools
+
+- **golangci-lint** configuration in `.golangci.yml` with comprehensive linters enabled
+- **GitHub Actions** workflow (`.github/workflows/go.yml`) runs on push and PR
+- **Package documentation** - each package has a `doc.go` file with package-level comments
+- Use `make check` before committing to run all quality checks
+
+### Linting Rules
+
+The project uses golangci-lint with these key linters:
+- `errcheck` - ensures all errors are checked
+- `gosimple`, `staticcheck` - code simplification and static analysis
+- `govet` - standard Go vet checks
+- `revive` - fast, extensible linter for style
+- `gosec` - security checker
+- `errorlint` - proper error wrapping with `%w`
+
+### CI/CD
+
+GitHub Actions workflow runs:
+1. Format check (gofmt)
+2. Vet check
+3. Tests with race detection and coverage
+4. golangci-lint
+5. Cross-platform builds
+
+## Release Process
+
+### Version Management
+
+Version information is embedded at build time using Go's `-ldflags`:
+
+```go
+// internal/version/version.go
+var (
+    Version   = "dev"      // Set via -X flag
+    GitCommit = "none"     // Set via -X flag
+    BuildDate = "unknown"  // Set via -X flag
+)
+```
+
+Build flags in Makefile and .goreleaser.yml inject these values:
+```
+-X github.com/bulletproof-bot/backup/internal/version.Version={{.Version}}
+-X github.com/bulletproof-bot/backup/internal/version.GitCommit={{.ShortCommit}}
+-X github.com/bulletproof-bot/backup/internal/version.BuildDate={{.Date}}
+```
+
+### Automatic Update Checking
+
+The CLI checks for newer versions via GitHub API (see `internal/version/version.go::CheckForUpdate()`):
+- Runs asynchronously after command execution (non-blocking)
+- Compares current version against latest GitHub release
+- Displays update notice if newer version available
+- Skips check for dev builds
+
+### Creating a Release
+
+The project uses [GoReleaser](https://goreleaser.com/) for automated multi-platform builds:
+
+1. **Tag the version:**
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **GitHub Actions automatically:**
+   - Runs tests and linting
+   - Builds binaries for Linux, macOS (Intel/ARM), Windows
+   - Creates GitHub release with installation instructions
+   - Generates checksums and archives
+
+3. **Configuration files:**
+   - `.goreleaser.yml` - GoReleaser build configuration
+   - `.github/workflows/release.yml` - GitHub Actions release workflow
+   - `.github/workflows/go.yml` - CI workflow (runs on push/PR)
+
+### Local Release Testing
+
+```bash
+# Test cross-platform builds locally
+make build-all
+
+# Test version information
+./bin/bulletproof version
+
+# Create a snapshot release (requires goreleaser installed)
+make release
+```
+
+### Release Workflow
+
+The release workflow (`.github/workflows/release.yml`):
+- Triggers on tags matching `v*`
+- Sets up Go 1.21
+- Runs GoReleaser with GitHub token for release creation
+- Produces artifacts:
+  - `bulletproof_VERSION_linux_amd64.tar.gz`
+  - `bulletproof_VERSION_darwin_amd64.tar.gz`
+  - `bulletproof_VERSION_darwin_arm64.tar.gz`
+  - `bulletproof_VERSION_windows_amd64.zip`
+  - `checksums.txt`
 
 ## Module Path
 

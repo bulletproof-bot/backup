@@ -14,7 +14,7 @@ const ConfigVersion = "1"
 
 // Config represents the bulletproof configuration
 type Config struct {
-	OpenclawPath string            `yaml:"openclaw_path,omitempty"`
+	OpenclawPath string             `yaml:"openclaw_path,omitempty"`
 	Destination  *DestinationConfig `yaml:"destination,omitempty"`
 	Schedule     ScheduleConfig     `yaml:"schedule"`
 	Options      BackupOptions      `yaml:"options"`

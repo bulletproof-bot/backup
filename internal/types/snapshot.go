@@ -14,10 +14,10 @@ import (
 
 // Snapshot represents a point-in-time backup snapshot
 type Snapshot struct {
-	ID        string                  `json:"id"`
-	Timestamp time.Time               `json:"timestamp"`
+	ID        string                   `json:"id"`
+	Timestamp time.Time                `json:"timestamp"`
 	Files     map[string]*FileSnapshot `json:"files"`
-	Message   string                  `json:"message,omitempty"`
+	Message   string                   `json:"message,omitempty"`
 }
 
 // FileSnapshot represents a single file in a snapshot
