@@ -42,9 +42,8 @@ Bulletproof is a CLI tool for backing up AI agents with snapshot-based versionin
 ### Core Value Propositions
 
 1. **Flexible Storage Options**
-   - **Local folders**: Timestamped subdirectories in any local path
-   - **Cloud sync folders**: Non-timestamped folders for Dropbox, Google Drive, OneDrive (cloud service handles versioning)
-   - **Git repositories**: Full version control with commit history and remote sync
+   - **Multi-folder**: Timestamped subdirectories—works anywhere (local disk, cloud sync folders, network shares)
+   - **Git repositories**: Storage-efficient version control with automatic deduplication and remote sync
 
 2. **Drift Detection**
    - Compare any two snapshots to see exactly what changed
@@ -93,21 +92,21 @@ bulletproof version                        Show version information
 
 ### Destination Types
 
-**Local Destination**
+Bulletproof automatically detects the backup approach based on the destination:
+
+**Multi-Folder Destination** (default)
 - Stores snapshots in timestamped subdirectories
 - Example: `~/bulletproof-backups/20250203-120000/`
+- Works anywhere: local disk, cloud sync folders (Dropbox, Google Drive, OneDrive), network shares
+- Each snapshot is a complete copy in a new folder
 - Fast, simple, works offline
 
-**Sync Destination**
-- Stores snapshots in non-timestamped folder
-- Cloud sync service (Dropbox, Google Drive) handles versioning
-- Example: `~/Dropbox/bulletproof-backup/` (always current state)
-- Metadata stored separately to track snapshot history
-
-**Git Destination**
-- Full git version control with commits and tags
-- Optional remote sync (GitHub, GitLab)
-- Standard git workflow and tooling compatibility
+**Git Repository Destination** (auto-detected)
+- If destination is a git repository, uses git operations automatically
+- Creates git commits and tags for each snapshot
+- Pushes to remote if git remote is configured
+- Storage efficient: git deduplicates unchanged files internally
+- Full git version control and tooling compatibility
 
 ### Snapshot System
 
@@ -134,34 +133,32 @@ bulletproof version                        Show version information
 1. Auto-detect OpenClaw installation (checks `~/.openclaw`, Docker paths)
 2. If not found, prompt user for agent directory location
 3. Create default configuration at `~/.config/bulletproof/config.yaml`
-4. Prompt for backup destination type (local, sync, git)
+4. Prompt for backup destination path
 5. Set up default sources (entire agent directory)
 6. Create `.config/bulletproof/scripts/` directories
+
+**Note**: Bulletproof automatically detects whether the destination is a git repository or multi-folder location. No type selection needed.
 
 **Example Output**:
 ```
 Detecting OpenClaw installation...
   ✓ Found at ~/.openclaw
 
-Select backup destination:
-  1. Local folder (timestamped subdirectories)
-  2. Cloud sync folder (Dropbox, Google Drive, etc.)
-  3. Git repository
-
-Choice: 1
-Local backup path: ~/bulletproof-backups
+Backup destination path: ~/bulletproof-backups
 
 ✅ Bulletproof backup initialized!
 
 Configuration: ~/.config/bulletproof/config.yaml
 Sources: ~/.openclaw/*
-Destination: ~/bulletproof-backups (local)
+Destination: ~/bulletproof-backups
 
 Next steps:
   bulletproof backup          Create your first backup
   bulletproof skill           Learn drift diagnosis and advanced usage
   bulletproof --help          See all commands
 ```
+
+**Note**: Bulletproof automatically detects if the destination is a git repository and uses git operations. For multi-folder backups, any path works (local disk, cloud sync folder, network share).
 
 #### 0.2 Initialize from Backup
 
@@ -179,21 +176,24 @@ Next steps:
 
 **Example**:
 ```bash
-# On new machine with backup in Dropbox
-bulletproof init --from-backup ~/Dropbox/bulletproof-backup
+# On new machine with backup in Dropbox cloud sync folder
+bulletproof init --from-backup ~/Dropbox/bulletproof-backups/20250203-120000
 
 # Or from local backup folder
 bulletproof init --from-backup ~/bulletproof-backups/20250203-120000
+
+# Or from git repository
+bulletproof init --from-backup ~/bulletproof-repo
 ```
 
 **Example Output**:
 ```
 Reading configuration from backup...
-  ✓ Found config in ~/Dropbox/bulletproof-backup/.bulletproof/config.yaml
+  ✓ Found config in ~/Dropbox/bulletproof-backups/20250203-120000/.bulletproof/config.yaml
 
 Original configuration:
   Agent path: ~/.openclaw
-  Destination: ~/bulletproof-backups (local)
+  Destination: ~/bulletproof-backups
   Scripts: 2 pre-backup, 2 post-restore
 
 Agent directory on this machine: ~/.openclaw
@@ -205,7 +205,7 @@ Configuration: ~/.config/bulletproof/config.yaml
 Ready to restore or create new backups.
 ```
 
-**Use Case**: User moves to new machine, syncs backup folder via Dropbox, runs `bulletproof init --from-backup ~/Dropbox/bulletproof-backup`, and can immediately restore.
+**Use Case**: User moves to new machine, syncs backup folder via Dropbox, runs `bulletproof init --from-backup ~/Dropbox/bulletproof-backups/20250203-120000`, and can immediately restore.
 
 #### 0.3 Sources Configuration
 
@@ -419,7 +419,7 @@ index 0000000..1234567
 - Include `+++`/`---` headers for each file
 - Include `@@` hunks with line numbers
 - Format must be parseable by AI agents
-- Work across all destination types (local, sync, git)
+- Work across both backup approaches (multi-folder and git)
 
 #### 2.2 Workflow Examples
 
@@ -802,7 +802,7 @@ bulletproof backup
 ✅ Bulletproof backup initialized!
 
 Configuration: ~/.config/bulletproof/config.yaml
-Destination: ~/bulletproof-backups (local)
+Destination: ~/bulletproof-backups
 
 Next steps:
   bulletproof backup          Create your first backup
@@ -1104,8 +1104,6 @@ Features deferred to future releases:
 
 **Why Deferred**: CLI is sufficient for AI agents (primary users). Visual UI adds complexity without immediate value for the target audience.
 
-**Estimated Effort**: 2-3 weeks
-
 #### 9.2 Retention and Cleanup Policies
 
 **Goal**: Automatic snapshot retention and storage management
@@ -1119,8 +1117,6 @@ Features deferred to future releases:
 
 **Why Deferred**: Users can manually delete old snapshots. Automatic retention requires careful design to avoid data loss.
 
-**Estimated Effort**: 1-2 weeks
-
 #### 9.3 Multi-Agent Support
 
 **Goal**: Enable multiple agents to safely share backup destinations
@@ -1132,8 +1128,6 @@ Features deferred to future releases:
 - Shared configuration with agent-specific overrides
 
 **Why Deferred**: Current design assumes single agent per backup destination. Multi-agent requires rethinking snapshot ID format and directory structure.
-
-**Estimated Effort**: 2-3 weeks
 
 #### 9.4 Snapshot Compression
 
@@ -1147,8 +1141,6 @@ Features deferred to future releases:
 
 **Why Deferred**: Current file sizes are manageable for typical agent installations. Compression adds complexity.
 
-**Estimated Effort**: 1 week
-
 #### 9.5 Incremental Backups
 
 **Goal**: Only store changed files between snapshots
@@ -1160,8 +1152,6 @@ Features deferred to future releases:
 - Maintain fast restore times
 
 **Why Deferred**: Adds significant complexity to snapshot format and restore logic. Full snapshots are simpler and more reliable.
-
-**Estimated Effort**: 3-4 weeks
 
 ---
 
@@ -1179,12 +1169,9 @@ sources:
 
 # Backup destination
 destination:
-  type: local  # or git, sync
-  path: ~/bulletproof-backups
-
-  # Git-specific (optional)
-  remote: git@github.com:user/backups.git
-  push: true
+  path: ~/bulletproof-backups  # Multi-folder: any local path or cloud sync folder
+  # OR
+  # path: ~/bulletproof-repo   # Git: must be initialized git repository
 
 # Exclusion patterns
 exclude:
@@ -1230,10 +1217,9 @@ sources:
 
 ### Destination Type Details
 
-**Local Destination**:
+**Multi-Folder Destination**:
 ```yaml
 destination:
-  type: local
   path: ~/bulletproof-backups
 ```
 
@@ -1242,31 +1228,30 @@ Creates timestamped subdirectories:
 - `~/bulletproof-backups/20250201-150000/`
 - etc.
 
-**Sync Destination**:
+Works with any path:
+- Local disk: `~/bulletproof-backups`
+- Cloud sync: `~/Dropbox/bulletproof-backups` or `~/Google Drive/bulletproof-backups`
+- Network share: `/mnt/nas/bulletproof-backups`
+
+**Git Repository Destination**:
 ```yaml
 destination:
-  type: sync
-  path: ~/Dropbox/bulletproof-backup
+  path: ~/bulletproof-repo  # Must be a git repository
 ```
 
-Maintains single current state:
-- `~/Dropbox/bulletproof-backup/` (always current)
-- Metadata in `.bulletproof/` tracks snapshot history
-- Cloud service handles versioning
-
-**Git Destination**:
-```yaml
-destination:
-  type: git
-  path: ~/bulletproof-repo
-  remote: git@github.com:user/backups.git
-  push: true
+Setup:
+```bash
+mkdir ~/bulletproof-repo
+cd ~/bulletproof-repo
+git init
+git remote add origin git@github.com:user/backups.git  # Optional
 ```
 
-Full git version control:
+Git operations:
 - Commits for each snapshot
-- Tags with snapshot IDs
-- Optional remote sync
+- Tags with snapshot IDs (e.g., `20250203-120000`)
+- Automatic push to remote if git remote is configured
+- Storage efficient: unchanged files aren't duplicated
 
 ---
 
@@ -1289,7 +1274,7 @@ Full git version control:
 ### Reliability
 - Script failures don't abort backup/restore (logged but continue)
 - Analytics failures never block command execution
-- Diff works across all three destination types (local, sync, git)
+- Diff works across both backup approaches (multi-folder and git)
 - Self-contained backups restore correctly on different machines
 
 ### Security
@@ -1743,14 +1728,14 @@ You have an agent on Machine A (local laptop) and want to move it to Machine B (
 bulletproof backup
 ```
 
-2. If using local destination, copy backup folder to Machine B:
+2. If using local storage, copy backup folder to Machine B:
 ```bash
 scp -r ~/bulletproof-backups/ user@machine-b:~/bulletproof-backups/
 ```
 
-3. If using sync destination (Dropbox), backup is already synced.
+3. If using cloud sync folder (Dropbox, Google Drive), backup is already synced.
 
-4. If using git destination with remote, backup is already pushed.
+4. If using git repository with remote, backup is already pushed.
 
 #### On Machine B (Target):
 
@@ -1761,9 +1746,9 @@ scp -r ~/bulletproof-backups/ user@machine-b:~/bulletproof-backups/
 bulletproof init --from-backup ~/bulletproof-backups/20250203-120000
 ```
 
-Or for sync destination:
+Or for cloud sync folder:
 ```bash
-bulletproof init --from-backup ~/Dropbox/bulletproof-backup
+bulletproof init --from-backup ~/Dropbox/bulletproof-backups/20250203-120000
 ```
 
 3. Verify configuration:

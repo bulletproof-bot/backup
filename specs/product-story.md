@@ -341,19 +341,19 @@ The snapshot is now **self-contained**: everything needed to restore Nova on a d
 
 **Step 3: Sync to Machine B**
 
-If using a git destination with remote:
+If using a git repository:
 
 ```bash
-# Already pushed automatically
+# Already pushed automatically to remote
 ```
 
-If using a sync destination (Dropbox):
+If using a cloud sync folder (Dropbox, Google Drive):
 
 ```bash
 # Already synced automatically
 ```
 
-If using local destination:
+If using local storage:
 
 ```bash
 scp -r ~/bulletproof-backups/20250203-120000 user@cloud-server:~/backups/
@@ -378,7 +378,7 @@ Reading configuration from backup...
 
 Original configuration:
   Sources: ~/.openclaw/*
-  Destination: ~/bulletproof-backups (local)
+  Destination: ~/bulletproof-backups
   Scripts: 2 pre-backup, 2 post-restore
 
 Agent directory on this machine: ~/.openclaw
@@ -519,18 +519,24 @@ This command outputs a markdown guide covering:
 
 The guide is designed to be read once and internalized, allowing agents to become expert Bulletproof users.
 
-## Storage Options: Three Destinations for Three Workflows
+## Storage Options: Two Approaches for Different Needs
 
-Bulletproof supports three destination types, each optimized for different use cases:
+Bulletproof supports two backup approaches, automatically detected based on your destination:
 
-### Local Destination: Fast and Simple
+### Multi-Folder Backups: Simple and Universal
 
-Perfect for development machines and local testing:
+Works anywhere—local disk, Dropbox, Google Drive, OneDrive, network shares:
 
 ```yaml
 destination:
-  type: local
   path: ~/bulletproof-backups
+```
+
+Or for cloud sync:
+
+```yaml
+destination:
+  path: ~/Dropbox/bulletproof-backups
 ```
 
 Creates timestamped subdirectories:
@@ -543,72 +549,63 @@ Creates timestamped subdirectories:
 └── ...
 ```
 
+**How it works**: Each backup creates a complete copy in a new timestamped folder. Simple, reliable, and works with any storage location.
+
 **Use cases**:
 
-- Development and testing
+- Local development and testing
+- Cloud sync folders (Dropbox, Google Drive, OneDrive)
+- Network shares and mounted drives
 - Fast local restore
-- Offline backup
 - Full control over storage location
 
-### Sync Destination: Cloud Without Complexity
+**Cloud sync**: When the destination is a cloud sync folder like `~/Dropbox/bulletproof-backups`, all snapshots sync automatically. The cloud service's versioning is ignored—Bulletproof maintains complete snapshot folders.
 
-Perfect for personal agents using Dropbox, Google Drive, or OneDrive:
+### Git Repository Backups: Storage-Efficient Versioning
 
-```yaml
-destination:
-  type: sync
-  path: ~/Dropbox/bulletproof-backup
-```
-
-Maintains a single current state:
-
-```
-~/Dropbox/bulletproof-backup/
-├── workspace/
-├── openclaw.json
-├── .bulletproof/
-│   ├── config.yaml
-│   ├── snapshots.json  # Tracks snapshot history
-│   └── scripts/
-└── _exports/
-```
-
-**Key innovation**: The cloud service handles versioning (Dropbox keeps 30-day history, Google Drive keeps 100 versions), so Bulletproof stores only the current state. Metadata in `.bulletproof/snapshots.json` tracks snapshot IDs and timestamps, enabling the `snapshots` and `diff` commands to work correctly.
-
-**Use cases**:
-
-- Personal agents with existing cloud storage
-- No additional storage cost
-- Automatic offsite backup
-- Access from multiple devices
-
-### Git Destination: Version Control for Agents
-
-Perfect for teams and agents requiring full audit trails:
+If your destination is a git repository, Bulletproof automatically uses git operations:
 
 ```yaml
 destination:
-  type: git
-  path: ~/bulletproof-repo
-  remote: git@github.com:user/backups.git
-  push: true
+  path: ~/bulletproof-repo  # Must be a git repository
 ```
 
 Each backup creates:
 
 - A git commit with timestamp message
 - A tag with the snapshot ID (e.g., `20250203-120000`)
-- Optional push to remote repository
+- Automatic push to remote (if configured in git)
+
+**How it works**: Files are committed to the git repository. Git's internal deduplication means unchanged files aren't duplicated between snapshots, saving significant storage space.
 
 **Use cases**:
 
-- Team collaboration
+- Storage efficiency (git deduplicates unchanged files internally)
 - Full audit trail with commit history
 - Integration with git workflows
 - Remote backup on GitHub/GitLab
 - Branch-based experimentation
 
-**Edge Case Handled**: Git repositories can grow large over time. Bulletproof uses the pure Go `go-git` library (not shelling out to `git`), ensuring consistent behavior across platforms and eliminating dependency on system-installed git.
+**Setup**:
+
+```bash
+# Initialize git repository at destination
+mkdir ~/bulletproof-repo
+cd ~/bulletproof-repo
+git init
+git remote add origin git@github.com:user/backups.git
+
+# Configure Bulletproof to use it
+bulletproof init
+# When prompted, enter: ~/bulletproof-repo
+
+# Backups now use git automatically
+bulletproof backup
+```
+
+**Key advantage**: While multi-folder backups duplicate files across snapshots, git stores each unique file once. If only 2 files change between snapshots, git only stores those 2 new versions—not the entire agent directory again.
+
+**Edge Case Handled**: Bulletproof uses the pure Go `go-git` library (not shelling out to `git`), ensuring consistent behavior across platforms and eliminating dependency on system-installed git.
 
 ## Privacy-First Analytics
 
@@ -1051,7 +1048,7 @@ Date: 2026-02-03T12:00:00Z
 
 While Bulletproof v1.0 is feature-complete for the core use cases, several enhancements are planned for future releases:
 
-### Visual Diff UI (Estimated: 2-3 weeks)
+### Visual Diff UI
 
 A visual diff tool for human users:
 
@@ -1062,7 +1059,7 @@ A visual diff tool for human users:
 
 **Why deferred**: CLI is sufficient for AI agents (primary users). Visual UI adds complexity without immediate value.
 
-### Retention Policies (Estimated: 1-2 weeks)
+### Retention Policies
 
 Automatic snapshot cleanup:
 
@@ -1074,7 +1071,7 @@ Automatic snapshot cleanup:
 
 **Why deferred**: Users can manually delete old snapshots. Automatic retention requires careful design to avoid data loss.
 
-### Multi-Agent Support (Estimated: 2-3 weeks)
+### Multi-Agent Support
 
 Enable multiple agents to share backup destinations:
 
@@ -1085,7 +1082,7 @@ Enable multiple agents to share backup destinations:
 
 **Why deferred**: Current design assumes single agent per destination. Multi-agent requires rethinking snapshot ID format.
 
-### Snapshot Compression (Estimated: 1 week)
+### Snapshot Compression
 
 Reduce storage requirements:
 
@@ -1095,7 +1092,7 @@ Reduce storage requirements:
 
 **Why deferred**: Current file sizes are manageable. Compression adds complexity.
 
-### Incremental Backups (Estimated: 3-4 weeks)
+### Incremental Backups
 
 Store only changed files:
 
