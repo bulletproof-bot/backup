@@ -43,7 +43,7 @@ func TestBackupRestore_GitDestination_EndToEnd(t *testing.T) {
 	// Test 1: Initial backup creates git commit and tag
 	var firstSnapshotID string
 	t.Run("InitialGitBackup", func(t *testing.T) {
-		result, err := engine.Backup(false, "Initial git backup")
+		result, err := engine.Backup(false, "Initial git backup", false, false)
 		helper.assertNoError(err, "Initial git backup failed")
 
 		if result.Skipped {
@@ -100,7 +100,7 @@ I am a helpful, analytical, and thorough AI assistant.
 `)
 		helper.addSkill(agentDir, "validation.js", "function validate() { return true; }")
 
-		result, err := engine.Backup(false, "Added validation skill")
+		result, err := engine.Backup(false, "Added validation skill", false, false)
 		helper.assertNoError(err, "Second git backup failed")
 
 		if result.Skipped {
@@ -128,7 +128,7 @@ I am a helpful, analytical, and thorough AI assistant.
 		time.Sleep(1100 * time.Millisecond)
 
 		// Restore to first snapshot
-		err = engine.Restore(firstSnapshotID, false)
+		err = engine.RestoreToTarget(firstSnapshotID, "", false, false, true)
 		helper.assertNoError(err, "Git restore failed")
 
 		// Verify validation.js was removed (wasn't in first snapshot)
@@ -203,7 +203,7 @@ func TestGitBackup_TagNaming(t *testing.T) {
 		// Make a change
 		helper.writeFile(filepath.Join(agentDir, "workspace", "file"+string(rune('A'+i))+".txt"), "content")
 
-		result, err := engine.Backup(false, "Backup "+string(rune('A'+i)))
+		result, err := engine.Backup(false, "Backup "+string(rune('A'+i)), false, false)
 		helper.assertNoError(err, "Backup failed")
 
 		snapshotIDs = append(snapshotIDs, result.Snapshot.ID)
@@ -249,7 +249,7 @@ func TestGitBackup_DeduplicationBehavior(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Backup 1: Initial state
-	result1, err := engine.Backup(false, "Initial")
+	result1, err := engine.Backup(false, "Initial", false, false)
 	helper.assertNoError(err, "Backup 1 failed")
 
 	// Get .git directory size after first backup
@@ -258,7 +258,7 @@ func TestGitBackup_DeduplicationBehavior(t *testing.T) {
 
 	// Backup 2: Change only one file
 	helper.modifySkill(agentDir, "analysis.js", "modified content")
-	result2, err := engine.Backup(false, "Modified one file")
+	result2, err := engine.Backup(false, "Modified one file", false, false)
 	helper.assertNoError(err, "Backup 2 failed")
 
 	// Get .git directory size after second backup
@@ -311,7 +311,7 @@ func TestGitBackup_CommitMessages(t *testing.T) {
 
 	// Create backup with custom message
 	customMessage := "Fixed critical security vulnerability in skill execution"
-	result, err := engine.Backup(false, customMessage)
+	result, err := engine.Backup(false, customMessage, false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Open repository and check commit message
@@ -372,7 +372,7 @@ func TestGitBackup_BranchManagement(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Create initial backup
-	_, err = engine.Backup(false, "Initial backup on main branch")
+	_, err = engine.Backup(false, "Initial backup on main branch", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Verify we're on expected branch (usually "main" or "master")
@@ -416,7 +416,7 @@ func TestGitBackup_RemotePushBehavior(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Create backup
-	result, err := engine.Backup(false, "Backup that would be pushed to remote")
+	result, err := engine.Backup(false, "Backup that would be pushed to remote", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Verify backup succeeded even without remote

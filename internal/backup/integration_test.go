@@ -35,7 +35,7 @@ func TestBackupRestore_LocalDestination_EndToEnd(t *testing.T) {
 
 	// Test 1: Initial backup
 	t.Run("InitialBackup", func(t *testing.T) {
-		result, err := engine.Backup(false, "Initial backup of test agent")
+		result, err := engine.Backup(false, "Initial backup of test agent", false, false)
 		helper.assertNoError(err, "Initial backup failed")
 
 		if result.Skipped {
@@ -60,7 +60,7 @@ func TestBackupRestore_LocalDestination_EndToEnd(t *testing.T) {
 
 	// Test 2: No-change backup should be skipped
 	t.Run("NoChangeBackupSkipped", func(t *testing.T) {
-		result, err := engine.Backup(false, "Duplicate backup attempt")
+		result, err := engine.Backup(false, "Duplicate backup attempt", false, false)
 		helper.assertNoError(err, "Backup failed")
 
 		if !result.Skipped {
@@ -85,7 +85,7 @@ I am a helpful, concise, and analytical AI assistant.
 `)
 		helper.addSkill(agentDir, "newskill.js", "function test() { return true; }")
 
-		result, err := engine.Backup(false, "Added new skill and modified personality")
+		result, err := engine.Backup(false, "Added new skill and modified personality", false, false)
 		helper.assertNoError(err, "Backup after changes failed")
 
 		if result.Skipped {
@@ -116,7 +116,7 @@ I am a helpful, concise, and analytical AI assistant.
 		firstSnapshot := snapshots[len(snapshots)-1]
 
 		// Restore it
-		err = engine.Restore(firstSnapshot.ID, false)
+		err = engine.RestoreToTarget(firstSnapshot.ID, "", false, false, true)
 		helper.assertNoError(err, "Restore failed")
 
 		// Verify files were restored
@@ -174,7 +174,7 @@ func TestBackup_MultipleChanges_DriftDetection(t *testing.T) {
 	var snapshotIDs []string
 
 	// Snapshot 1: Initial state
-	result, err := engine.Backup(false, "Initial state")
+	result, err := engine.Backup(false, "Initial state", false, false)
 	helper.assertNoError(err, "Initial backup failed")
 	snapshotIDs = append(snapshotIDs, result.Snapshot.ID)
 
@@ -183,7 +183,7 @@ func TestBackup_MultipleChanges_DriftDetection(t *testing.T) {
 		// The createDriftScenario already applied changes, so we just backup
 		if i == 0 {
 			// First change was already applied, backup it
-			result, err := engine.Backup(false, change)
+			result, err := engine.Backup(false, change, false, false)
 			helper.assertNoError(err, "Backup failed for change: "+change)
 			snapshotIDs = append(snapshotIDs, result.Snapshot.ID)
 		}
@@ -253,7 +253,7 @@ func TestBackup_CompromiseDetection(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Snapshot 1: Clean state
-	result1, err := engine.Backup(false, "Clean agent state")
+	result1, err := engine.Backup(false, "Clean agent state", false, false)
 	helper.assertNoError(err, "Initial backup failed")
 
 	// Simulate a compromise
@@ -263,7 +263,7 @@ func TestBackup_CompromiseDetection(t *testing.T) {
 	time.Sleep(1100 * time.Millisecond)
 
 	// Snapshot 2: Compromised state
-	result2, err := engine.Backup(false, "After compromise (should detect attack)")
+	result2, err := engine.Backup(false, "After compromise (should detect attack)", false, false)
 	helper.assertNoError(err, "Compromised backup failed")
 
 	// Test: Detect the compromise through diff
@@ -315,7 +315,7 @@ func TestBackup_CompromiseDetection(t *testing.T) {
 		// Sleep to ensure safety backup gets different timestamp
 		time.Sleep(1100 * time.Millisecond)
 
-		err = engine.Restore(result1.Snapshot.ID, false)
+		err = engine.RestoreToTarget(result1.Snapshot.ID, "", false, false, true)
 		helper.assertNoError(err, "Restore to clean state failed")
 
 		// Verify malicious skill was removed
@@ -368,7 +368,7 @@ func TestBackup_FileTypes(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Backup all file types
-	result, err := engine.Backup(false, "Backup with various file types")
+	result, err := engine.Backup(false, "Backup with various file types", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Verify all file types were backed up
@@ -423,7 +423,7 @@ func TestBackup_ExclusionPatterns(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Test exclusions")
+	result, err := engine.Backup(false, "Test exclusions", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Verify excluded files are NOT in snapshot
@@ -467,7 +467,7 @@ func TestBackup_LargeFiles(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Backup with large file")
+	result, err := engine.Backup(false, "Backup with large file", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Verify large file was backed up correctly
@@ -517,7 +517,7 @@ func TestBackup_EmptyDirectories(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Backup with empty directories")
+	result, err := engine.Backup(false, "Backup with empty directories", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Verify snapshot was created
@@ -557,14 +557,14 @@ func TestRestore_SafetyBackup(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Create initial backup
-	result1, err := engine.Backup(false, "Initial state")
+	result1, err := engine.Backup(false, "Initial state", false, false)
 	helper.assertNoError(err, "Initial backup failed")
 
 	// Make changes
 	helper.modifyAgentPersonality(agentDir, "Modified personality")
 
 	// Create second backup
-	result2, err := engine.Backup(false, "Modified state")
+	result2, err := engine.Backup(false, "Modified state", false, false)
 	helper.assertNoError(err, "Second backup failed")
 
 	// Make another change after the backup so safety backup will be created
@@ -576,7 +576,7 @@ func TestRestore_SafetyBackup(t *testing.T) {
 	countBefore := len(snapshotsBefore)
 
 	// Restore to first state (this should create a safety backup with the current modified state)
-	err = engine.Restore(result1.Snapshot.ID, false)
+	err = engine.RestoreToTarget(result1.Snapshot.ID, "", false, false, true)
 	helper.assertNoError(err, "Restore failed")
 
 	// Get snapshot count after restore
@@ -618,28 +618,28 @@ func TestDiff_DetectChanges(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Snapshot 1: Initial state
-	result1, err := engine.Backup(false, "State 1")
+	result1, err := engine.Backup(false, "State 1", false, false)
 	helper.assertNoError(err, "Backup 1 failed")
 
 	// Modify: add file
 	helper.addSkill(agentDir, "new.js", "new skill")
 
 	// Snapshot 2: After addition
-	result2, err := engine.Backup(false, "State 2 - added file")
+	result2, err := engine.Backup(false, "State 2 - added file", false, false)
 	helper.assertNoError(err, "Backup 2 failed")
 
 	// Modify: change existing file
 	helper.modifySkill(agentDir, "analysis.js", "modified skill")
 
 	// Snapshot 3: After modification
-	result3, err := engine.Backup(false, "State 3 - modified file")
+	result3, err := engine.Backup(false, "State 3 - modified file", false, false)
 	helper.assertNoError(err, "Backup 3 failed")
 
 	// Remove: delete a file
 	helper.removeSkill(agentDir, "summarization.js")
 
 	// Snapshot 4: After deletion
-	result4, err := engine.Backup(false, "State 4 - deleted file")
+	result4, err := engine.Backup(false, "State 4 - deleted file", false, false)
 	helper.assertNoError(err, "Backup 4 failed")
 
 	// Test diff detection

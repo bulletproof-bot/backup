@@ -418,3 +418,29 @@ func (d *LocalDestination) Restore(snapshotID string, targetPath string) error {
 		return nil
 	})
 }
+
+// GetSnapshotPath returns the filesystem path where a snapshot's files are stored
+func (d *LocalDestination) GetSnapshotPath(id string) string {
+	if d.Timestamped {
+		return d.snapshotPath(id)
+	}
+	return d.BasePath
+}
+
+// DeleteSnapshot deletes a snapshot by ID
+func (d *LocalDestination) DeleteSnapshot(id string) error {
+	if !d.Timestamped {
+		return fmt.Errorf("cannot delete snapshots in sync mode (non-timestamped destination)")
+	}
+
+	snapshotPath := d.snapshotPath(id)
+	if _, err := os.Stat(snapshotPath); os.IsNotExist(err) {
+		return fmt.Errorf("snapshot does not exist: %s", id)
+	}
+
+	if err := os.RemoveAll(snapshotPath); err != nil {
+		return fmt.Errorf("failed to delete snapshot directory: %w", err)
+	}
+
+	return nil
+}

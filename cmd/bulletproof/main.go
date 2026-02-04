@@ -27,10 +27,13 @@ func main() {
 	rootCmd.AddCommand(commands.NewBackupCommand())
 	rootCmd.AddCommand(commands.NewRestoreCommand())
 	rootCmd.AddCommand(commands.NewDiffCommand())
-	rootCmd.AddCommand(commands.NewHistoryCommand())
+	rootCmd.AddCommand(commands.NewSnapshotsCommand())
+	rootCmd.AddCommand(commands.NewPruneCommand())
 	rootCmd.AddCommand(commands.NewConfigCommand())
 	rootCmd.AddCommand(commands.NewVersionCommand())
 	rootCmd.AddCommand(commands.NewSkillCommand())
+	rootCmd.AddCommand(commands.NewAnalyticsCommand())
+	rootCmd.AddCommand(commands.NewScheduleCommand())
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {

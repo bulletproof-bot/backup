@@ -10,4 +10,9 @@ type Destination interface {
 	ListSnapshots() ([]*types.SnapshotInfo, error)
 	Restore(snapshotID string, targetPath string) error
 	Validate() error
+	// GetSnapshotPath returns the filesystem path where a snapshot's files are stored
+	// Returns empty string if not applicable (e.g., git destination)
+	GetSnapshotPath(id string) string
+	// DeleteSnapshot deletes a snapshot by ID
+	DeleteSnapshot(id string) error
 }

@@ -12,3 +12,8 @@ func NewSyncDestination(basePath string) *SyncDestination {
 		LocalDestination: NewLocalDestination(basePath, false),
 	}
 }
+
+// GetSnapshotPath returns the base path for sync destinations
+func (d *SyncDestination) GetSnapshotPath(id string) string {
+	return d.BasePath
+}

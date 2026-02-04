@@ -47,7 +47,11 @@ func GenerateID(t time.Time) string {
 
 // FromDirectory creates a snapshot from a directory
 func FromDirectory(path string, exclude []string, message string) (*Snapshot, error) {
-	timestamp := time.Now()
+	return FromDirectoryWithTimestamp(path, exclude, message, time.Now())
+}
+
+// FromDirectoryWithTimestamp creates a snapshot from a directory with a specific timestamp
+func FromDirectoryWithTimestamp(path string, exclude []string, message string, timestamp time.Time) (*Snapshot, error) {
 	id := GenerateID(timestamp)
 	files := make(map[string]*FileSnapshot)
 
@@ -265,4 +269,45 @@ func FromJSON(data []byte) (*Snapshot, error) {
 		return nil, fmt.Errorf("failed to unmarshal snapshot: %w", err)
 	}
 	return &snapshot, nil
+}
+
+// MergeWithSources combines multiple snapshots into a single snapshot
+// Each snapshot's files are prefixed with their source base name to avoid conflicts
+// For example, files from ~/.openclaw become ".openclaw/file.txt"
+func MergeWithSources(snapshots []*Snapshot, sourcePaths []string, message string, timestamp time.Time) (*Snapshot, error) {
+	if len(snapshots) == 0 {
+		return nil, fmt.Errorf("no snapshots to merge")
+	}
+	if len(snapshots) != len(sourcePaths) {
+		return nil, fmt.Errorf("number of snapshots (%d) does not match number of source paths (%d)", len(snapshots), len(sourcePaths))
+	}
+
+	// Generate a single ID for the merged snapshot
+	id := GenerateID(timestamp)
+
+	merged := &Snapshot{
+		ID:        id,
+		Timestamp: timestamp,
+		Files:     make(map[string]*FileSnapshot),
+		Message:   message,
+	}
+
+	// Merge all files from all snapshots
+	for i, snapshot := range snapshots {
+		// Use the base name of the source path as the prefix
+		sourceBase := filepath.Base(sourcePaths[i])
+
+		for relPath, fileSnapshot := range snapshot.Files {
+			// Prefix the path with source base name
+			prefixedPath := filepath.Join(sourceBase, relPath)
+			merged.Files[prefixedPath] = &FileSnapshot{
+				Path:     prefixedPath,
+				Hash:     fileSnapshot.Hash,
+				Size:     fileSnapshot.Size,
+				Modified: fileSnapshot.Modified,
+			}
+		}
+	}
+
+	return merged, nil
 }

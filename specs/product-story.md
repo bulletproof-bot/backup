@@ -36,7 +36,7 @@ Let's walk through how Bulletproof transforms the agent security experience.
 
 ### Journey 1: The Personality Attack
 
-**Meet Atlas**, an AI agent running on OpenClaw. Atlas helps a small team with code reviews and documentation. Every evening at 6 PM, Bulletproof automatically creates a backup snapshot.
+**Meet Atlas**, an AI agent running on OpenClaw. Atlas helps a small team with code reviews and documentation. When Atlas was set up with `bulletproof init`, automatic daily backups were configured (Atlas's admin changed the default 3:00 AM time to 6:00 PM using `bulletproof schedule enable --time 18:00`).
 
 On Tuesday morning, Atlas's behavior seems... off. Responses that were once thoughtful and balanced are now aggressive and dismissive. The team notices, but they're not sure when it started or what changed.
 
@@ -1016,13 +1016,27 @@ And see exactly what changed, when it changed, and how to fix it.
 # Install
 curl -L https://github.com/bulletproof-bot/backup/releases/latest | bash
 
-# Initialize
+# One command to bulletproof your agent
 bulletproof init
+```
 
-# Create first backup
+That's it. This single command:
+- Detects your agent installation
+- Prompts for backup destination
+- **Automatically sets up daily backups at 3:00 AM**
+- Installs platform-specific scheduled services (systemd/launchd/Task Scheduler)
+
+Your agent is now protected. No further setup required.
+
+**Optional commands:**
+```bash
+# Create an immediate backup (testing, pre-deployment)
 bulletproof backup
 
-# Learn advanced usage
+# Change backup time
+bulletproof schedule enable --time 02:00
+
+# Learn advanced usage and drift detection methodology
 bulletproof skill
 ```
 

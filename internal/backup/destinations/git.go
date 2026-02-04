@@ -505,3 +505,39 @@ func (d *GitDestination) Restore(snapshotID string, targetPath string) error {
 
 	return err
 }
+
+// GetSnapshotPath returns empty string for git destinations (files in git repo)
+// TODO: Could implement by checking out tag to temp directory
+func (d *GitDestination) GetSnapshotPath(id string) string {
+	return ""
+}
+
+// DeleteSnapshot deletes a snapshot by removing its tag
+func (d *GitDestination) DeleteSnapshot(id string) error {
+	// Ensure repo is validated
+	if err := d.Validate(); err != nil {
+		return err
+	}
+
+	// Delete the local tag
+	tagName := "backup-" + id
+	if err := d.repo.DeleteTag(tagName); err != nil {
+		return fmt.Errorf("failed to delete tag %s: %w", tagName, err)
+	}
+
+	// If remote is configured, delete the remote tag too
+	remote, err := d.repo.Remote("origin")
+	if err == nil && remote != nil {
+		// Push tag deletion to remote
+		refSpec := fmt.Sprintf(":refs/tags/%s", tagName)
+		if err := d.repo.Push(&git.PushOptions{
+			RemoteName: "origin",
+			RefSpecs:   []config.RefSpec{config.RefSpec(refSpec)},
+		}); err != nil {
+			// Don't fail if remote deletion fails (might not have permissions)
+			fmt.Printf("Warning: failed to delete remote tag %s: %v\n", tagName, err)
+		}
+	}
+
+	return nil
+}

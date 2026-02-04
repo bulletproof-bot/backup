@@ -94,8 +94,18 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		diff = filterDiffByPattern(diff, pattern)
 	}
 
+	// Get snapshot paths for content-based diff (if available)
+	fromPath := engine.Destination().GetSnapshotPath(from.ID)
+	toPath := engine.Destination().GetSnapshotPath(to.ID)
+
 	// Display diff in unified format
-	diff.PrintUnified(from, to)
+	if fromPath != "" && toPath != "" {
+		// Use content-based diff when paths are available
+		diff.PrintUnifiedWithContent(fromPath, toPath, from, to)
+	} else {
+		// Fall back to metadata-only diff
+		diff.PrintUnified(from, to)
+	}
 
 	return nil
 }

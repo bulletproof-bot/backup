@@ -88,16 +88,19 @@ Bulletproof is a CLI tool for backing up AI agents with snapshot-based versionin
 ### Command Structure
 
 ```
-bulletproof init [--from-backup <path>]    Initialize configuration
-bulletproof backup [--message <text>]      Create snapshot of current state
+bulletproof init [--from-backup <path>]    One-command setup with automatic daily backups
+bulletproof backup [--message <text>]      Create snapshot of current state (manual backup)
 bulletproof restore <id> [--force]         Restore to specific snapshot
 bulletproof snapshots                      List all available snapshots
 bulletproof diff [id1] [id2]               Compare snapshots or current state
+bulletproof schedule enable|disable|status Manage automatic backup schedule
 bulletproof skill                          Learn advanced usage and drift diagnosis
 bulletproof analytics                      Manage usage analytics
 bulletproof config                         View or modify configuration
 bulletproof version                        Show version information
 ```
+
+**Note**: `bulletproof init` is the only command needed to make your agent bulletproof. It automatically sets up daily backups at 3:00 AM using platform-specific scheduled services (systemd timer on Linux, launchd on macOS, Task Scheduler on Windows). The `schedule` command is for customizing the backup time or disabling automatic backups.
 
 ### Destination Types
 
@@ -150,6 +153,8 @@ Bulletproof automatically detects the backup approach based on the destination:
 4. Prompt for backup destination path
 5. Set up default sources (entire agent directory)
 6. Create `.config/bulletproof/scripts/` directories
+7. **Automatically install platform-specific scheduled backup service (systemd/launchd/Task Scheduler)**
+8. **Set default backup time to 03:00 (3:00 AM)**
 
 **Note**: Bulletproof automatically detects whether the destination is a git repository or multi-folder location. No type selection needed.
 
@@ -161,16 +166,18 @@ Detecting OpenClaw installation...
 
 Backup destination path: ~/bulletproof-backups
 
-✅ Bulletproof backup initialized!
+✅ Configuration saved to: ~/.config/bulletproof/config.yaml
 
-Configuration: ~/.config/bulletproof/config.yaml
-Sources: ~/.openclaw/*
-Destination: ~/bulletproof-backups
+⏰ Setting up automatic daily backups at 03:00...
+✅ Automatic backups scheduled for 03:00 daily
 
-Next steps:
-  bulletproof backup          Create your first backup
-  bulletproof skill           Learn drift diagnosis and advanced usage
-  bulletproof --help          See all commands
+🎉 You're bulletproof! Your agent is now protected.
+
+What's next:
+  - Your agent will back up automatically every day at 03:00
+  - Run 'bulletproof backup' to create a backup right now
+  - Run 'bulletproof schedule disable' to turn off automatic backups
+  - Run 'bulletproof schedule enable --time HH:MM' to change the backup time
 ```
 
 **Note**: Bulletproof automatically detects if the destination is a git repository and uses git operations. For multi-folder backups, any path works (local disk, cloud sync folder, network share).

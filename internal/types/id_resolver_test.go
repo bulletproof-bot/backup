@@ -33,18 +33,18 @@ func TestIsFullID(t *testing.T) {
 		id       string
 		expected bool
 	}{
-		{"20260203-120000", true},      // Old format (backward compatibility)
-		{"20260203-235959", true},      // Old format
-		{"20260101-000000", true},      // Old format
-		{"20260203-120000-123", true},  // New format with milliseconds
-		{"20260203-235959-999", true},  // New format with milliseconds
-		{"20260101-000000-000", true},  // New format with milliseconds
+		{"20260203-120000", true},     // Old format (backward compatibility)
+		{"20260203-235959", true},     // Old format
+		{"20260101-000000", true},     // Old format
+		{"20260203-120000-123", true}, // New format with milliseconds
+		{"20260203-235959-999", true}, // New format with milliseconds
+		{"20260101-000000-000", true}, // New format with milliseconds
 		{"1", false},
 		{"42", false},
-		{"2026020-120000", false},      // Too short
-		{"202602033-120000", false},    // Too long
-		{"20260203-12000", false},      // Missing second digit
-		{"20260203-120000-12", false},  // Milliseconds too short
+		{"2026020-120000", false},       // Too short
+		{"202602033-120000", false},     // Too long
+		{"20260203-12000", false},       // Missing second digit
+		{"20260203-120000-12", false},   // Milliseconds too short
 		{"20260203-120000-1234", false}, // Milliseconds too long
 		{"abc", false},
 		{"", false},

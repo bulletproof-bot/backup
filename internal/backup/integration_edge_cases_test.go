@@ -39,7 +39,7 @@ func TestEdgeCase_EmptyAgent(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Backup empty agent
-	result, err := engine.Backup(false, "Empty agent backup")
+	result, err := engine.Backup(false, "Empty agent backup", false, false)
 	helper.assertNoError(err, "Empty agent backup should succeed")
 
 	if result.Snapshot == nil {
@@ -87,7 +87,7 @@ func TestEdgeCase_FilesWithSpecialCharacters(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Backup
-	result, err := engine.Backup(false, "Files with special characters")
+	result, err := engine.Backup(false, "Files with special characters", false, false)
 	helper.assertNoError(err, "Backup with special characters failed")
 
 	// Verify all files were backed up
@@ -98,7 +98,7 @@ func TestEdgeCase_FilesWithSpecialCharacters(t *testing.T) {
 
 	// Restore and verify
 	helper.removeSkill(agentDir, "analysis.js") // Remove a file to verify restore
-	err = engine.Restore(result.Snapshot.ID, false)
+	err = engine.RestoreToTarget(result.Snapshot.ID, "", false, false, true)
 	helper.assertNoError(err, "Restore failed")
 
 	// Verify all special character files still exist
@@ -116,11 +116,11 @@ func TestEdgeCase_UnicodeFilenames(t *testing.T) {
 
 	// Create files with Unicode characters
 	unicodeFiles := []string{
-		"文件.txt",           // Chinese
-		"файл.txt",         // Cyrillic
-		"αρχείο.txt",       // Greek
-		"ファイル.txt",         // Japanese
-		"emoji😀.txt",      // Emoji
+		"文件.txt",     // Chinese
+		"файл.txt",   // Cyrillic
+		"αρχείο.txt", // Greek
+		"ファイル.txt",   // Japanese
+		"emoji😀.txt", // Emoji
 	}
 
 	for _, filename := range unicodeFiles {
@@ -141,7 +141,7 @@ func TestEdgeCase_UnicodeFilenames(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Unicode filenames")
+	result, err := engine.Backup(false, "Unicode filenames", false, false)
 	helper.assertNoError(err, "Backup with Unicode filenames failed")
 
 	// Verify files were backed up
@@ -185,7 +185,7 @@ func TestEdgeCase_DeepDirectoryNesting(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Deep directory nesting")
+	result, err := engine.Backup(false, "Deep directory nesting", false, false)
 	helper.assertNoError(err, "Backup with deep nesting failed")
 
 	// Verify deep file was backed up
@@ -240,7 +240,7 @@ func TestEdgeCase_SymlinksHandling(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Backup with symlinks")
+	result, err := engine.Backup(false, "Backup with symlinks", false, false)
 	helper.assertNoError(err, "Backup with symlinks failed")
 
 	// Verify symlink handling (implementation may choose to follow or copy symlinks)
@@ -286,7 +286,7 @@ func TestEdgeCase_ReadOnlyFiles(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Backup should succeed even with readonly files
-	result, err := engine.Backup(false, "Backup with readonly files")
+	result, err := engine.Backup(false, "Backup with readonly files", false, false)
 	helper.assertNoError(err, "Backup with readonly files should succeed")
 
 	// Verify readonly file was backed up
@@ -294,7 +294,7 @@ func TestEdgeCase_ReadOnlyFiles(t *testing.T) {
 	helper.assertFileExists(filepath.Join(snapshotPath, "workspace", "readonly.txt"))
 
 	// Restore should succeed
-	err = engine.Restore(result.Snapshot.ID, false)
+	err = engine.RestoreToTarget(result.Snapshot.ID, "", false, false, true)
 	helper.assertNoError(err, "Restore with readonly files should succeed")
 }
 
@@ -341,7 +341,7 @@ func TestEdgeCase_CorruptedSnapshot(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Create a backup
-	result, err := engine.Backup(false, "Original backup")
+	result, err := engine.Backup(false, "Original backup", false, false)
 	helper.assertNoError(err, "Backup failed")
 
 	// Corrupt the snapshot metadata
@@ -349,7 +349,7 @@ func TestEdgeCase_CorruptedSnapshot(t *testing.T) {
 	helper.writeFile(metadataPath, "corrupted data {{{")
 
 	// Attempting to restore should fail gracefully
-	err = engine.Restore(result.Snapshot.ID, false)
+	err = engine.RestoreToTarget(result.Snapshot.ID, "", false, false, true)
 	helper.assertError(err, "Restore of corrupted snapshot should fail")
 
 	// Error message should be helpful
@@ -380,11 +380,11 @@ func TestEdgeCase_InvalidSnapshotID(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Try to restore with non-existent snapshot ID
-	err = engine.Restore("nonexistent-snapshot-id", false)
+	err = engine.RestoreToTarget("nonexistent-snapshot-id", "", false, false, true)
 	helper.assertError(err, "Restore with invalid ID should fail")
 
 	// Try with malformed ID
-	err = engine.Restore("../../etc/passwd", false)
+	err = engine.RestoreToTarget("../../etc/passwd", "", false, false, true)
 	helper.assertError(err, "Restore with path traversal should fail")
 }
 
@@ -419,7 +419,7 @@ func TestEdgeCase_VeryLongFilenames(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Long filename backup")
+	result, err := engine.Backup(false, "Long filename backup", false, false)
 	helper.assertNoError(err, "Backup with long filename failed")
 
 	// Verify long filename was backed up
@@ -454,7 +454,7 @@ func TestEdgeCase_RapidSuccessiveBackups(t *testing.T) {
 		// Make a small change each time
 		helper.writeFile(filepath.Join(agentDir, "workspace", "file"+string(rune('0'+i))+".txt"), "content")
 
-		result, err := engine.Backup(false, "Rapid backup "+string(rune('0'+i)))
+		result, err := engine.Backup(false, "Rapid backup "+string(rune('0'+i)), false, false)
 		helper.assertNoError(err, "Rapid backup failed")
 
 		if !result.Skipped {
@@ -520,7 +520,7 @@ func TestEdgeCase_PermissionErrors(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// Backup should handle permission error gracefully
-	_, err = engine.Backup(false, "Backup with permission errors")
+	_, err = engine.Backup(false, "Backup with permission errors", false, false)
 
 	// Implementation may choose to:
 	// 1. Skip unreadable files and continue
@@ -563,7 +563,7 @@ func TestEdgeCase_ZeroByteFiles(t *testing.T) {
 	engine, err := NewBackupEngine(cfg)
 	helper.assertNoError(err, "NewBackupEngine failed")
 
-	result, err := engine.Backup(false, "Backup with zero-byte files")
+	result, err := engine.Backup(false, "Backup with zero-byte files", false, false)
 	helper.assertNoError(err, "Backup with empty files failed")
 
 	// Verify empty files were backed up
@@ -606,7 +606,7 @@ func TestEdgeCase_BackupOfBackups(t *testing.T) {
 	helper.assertNoError(err, "NewBackupEngine failed")
 
 	// This should not recurse infinitely
-	result, err := engine.Backup(false, "Test exclusion of backup directory")
+	result, err := engine.Backup(false, "Test exclusion of backup directory", false, false)
 	helper.assertNoError(err, "Backup should not recurse infinitely")
 
 	// Verify snapshot was created but doesn't include backups directory

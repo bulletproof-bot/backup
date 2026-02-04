@@ -3,7 +3,11 @@ package types
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // PrintUnified prints the diff in git-style unified format
@@ -117,18 +121,61 @@ func (d *SnapshotDiff) PrintUnifiedWithContent(fromPath, toPath string, from, to
 
 // printFileContentDiff prints a unified diff with actual file contents
 func printFileContentDiff(relPath, fromPath, toPath string, from, to *Snapshot) error {
-	// This is a placeholder - real implementation would:
-	// 1. Read file content from fromPath/relPath
-	// 2. Read file content from toPath/relPath
-	// 3. Generate line-by-line unified diff
-	// 4. Print in git diff format
+	// Read file contents
+	fromContent, err := readFileContent(filepath.Join(fromPath, relPath))
+	if err != nil {
+		return fmt.Errorf("failed to read from file: %w", err)
+	}
 
-	// For now, fall back to metadata diff
-	return fmt.Errorf("content diff not yet implemented")
+	toContent, err := readFileContent(filepath.Join(toPath, relPath))
+	if err != nil {
+		return fmt.Errorf("failed to read to file: %w", err)
+	}
+
+	// Check if files are binary
+	if isBinary(fromContent) || isBinary(toContent) {
+		fmt.Printf("diff --git a/%s b/%s\n", relPath, relPath)
+		fmt.Printf("--- a/%s\n", relPath)
+		fmt.Printf("+++ b/%s\n", relPath)
+		fmt.Println("Binary files differ")
+		return nil
+	}
+
+	// Generate and print unified diff
+	diff := generateUnifiedDiff(fromContent, toContent, relPath)
+	fmt.Print(diff)
+	return nil
 }
 
-// generateLineDiff generates a unified diff between two text contents
-func generateLineDiff(fromContent, toContent, path string) string {
+// readFileContent reads file content as a string
+func readFileContent(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+
+	return string(content), nil
+}
+
+// isBinary checks if content appears to be binary (contains null bytes or invalid UTF-8)
+func isBinary(content string) bool {
+	// Check for null bytes
+	if strings.Contains(content, "\x00") {
+		return true
+	}
+
+	// Check if valid UTF-8 (simple heuristic)
+	return !utf8.ValidString(content)
+}
+
+// generateUnifiedDiff generates a proper unified diff between two text contents
+func generateUnifiedDiff(fromContent, toContent, path string) string {
 	fromLines := splitLines(fromContent)
 	toLines := splitLines(toContent)
 
@@ -137,28 +184,117 @@ func generateLineDiff(fromContent, toContent, path string) string {
 	result.WriteString(fmt.Sprintf("--- a/%s\n", path))
 	result.WriteString(fmt.Sprintf("+++ b/%s\n", path))
 
-	// Simple diff algorithm - this is a basic implementation
-	// A production version would use Myers diff or similar
-	result.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n",
-		1, len(fromLines), 1, len(toLines)))
+	// Generate hunks using simple line-by-line comparison
+	hunks := generateHunks(fromLines, toLines)
 
-	// Show first few lines with +/- markers
-	maxLines := 10
-	for i := 0; i < maxLines && i < len(fromLines); i++ {
-		result.WriteString(fmt.Sprintf("-%s\n", fromLines[i]))
-	}
-	if len(fromLines) > maxLines {
-		result.WriteString(fmt.Sprintf("... (%d more lines)\n", len(fromLines)-maxLines))
-	}
-
-	for i := 0; i < maxLines && i < len(toLines); i++ {
-		result.WriteString(fmt.Sprintf("+%s\n", toLines[i]))
-	}
-	if len(toLines) > maxLines {
-		result.WriteString(fmt.Sprintf("... (%d more lines)\n", len(toLines)-maxLines))
+	for _, hunk := range hunks {
+		result.WriteString(hunk)
 	}
 
 	return result.String()
+}
+
+// generateHunks generates unified diff hunks with context
+func generateHunks(fromLines, toLines []string) []string {
+	const contextLines = 3 // Number of context lines to show
+
+	// Simple diff: find matching and non-matching sections
+	type change struct {
+		fromStart, fromCount int
+		toStart, toCount     int
+		lines                []string // Lines with +/- prefixes
+	}
+
+	var hunks []string
+	var currentHunk []string
+	var hunkFromStart, hunkToStart int
+	var hunkFromCount, hunkToCount int
+
+	// Simple algorithm: compare line by line
+	i, j := 0, 0
+	inHunk := false
+	contextAfter := 0
+
+	for i < len(fromLines) || j < len(toLines) {
+		if i < len(fromLines) && j < len(toLines) && fromLines[i] == toLines[j] {
+			// Lines match - add as context
+			if inHunk {
+				currentHunk = append(currentHunk, " "+fromLines[i])
+				hunkFromCount++
+				hunkToCount++
+				contextAfter++
+
+				// End hunk if we have enough context
+				if contextAfter >= contextLines {
+					hunks = append(hunks, formatHunk(hunkFromStart, hunkFromCount, hunkToStart, hunkToCount, currentHunk))
+					currentHunk = nil
+					inHunk = false
+					contextAfter = 0
+				}
+			}
+			i++
+			j++
+		} else {
+			// Lines differ - start or continue hunk
+			if !inHunk {
+				// Start new hunk with context
+				hunkFromStart = max(0, i-contextLines) + 1
+				hunkToStart = max(0, j-contextLines) + 1
+				hunkFromCount = 0
+				hunkToCount = 0
+				currentHunk = nil
+
+				// Add leading context
+				for k := max(0, i-contextLines); k < i && k < len(fromLines); k++ {
+					currentHunk = append(currentHunk, " "+fromLines[k])
+					hunkFromCount++
+					hunkToCount++
+				}
+
+				inHunk = true
+				contextAfter = 0
+			}
+
+			// Add changed lines
+			if i < len(fromLines) && (j >= len(toLines) || fromLines[i] != toLines[j]) {
+				currentHunk = append(currentHunk, "-"+fromLines[i])
+				hunkFromCount++
+				i++
+				contextAfter = 0
+			}
+			if j < len(toLines) && (i >= len(fromLines) || (i > 0 && fromLines[i-1] != toLines[j])) {
+				currentHunk = append(currentHunk, "+"+toLines[j])
+				hunkToCount++
+				j++
+				contextAfter = 0
+			}
+		}
+	}
+
+	// Finalize last hunk
+	if inHunk {
+		hunks = append(hunks, formatHunk(hunkFromStart, hunkFromCount, hunkToStart, hunkToCount, currentHunk))
+	}
+
+	return hunks
+}
+
+// formatHunk formats a single hunk with header
+func formatHunk(fromStart, fromCount, toStart, toCount int, lines []string) string {
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", fromStart, fromCount, toStart, toCount))
+	for _, line := range lines {
+		result.WriteString(line + "\n")
+	}
+	return result.String()
+}
+
+// max returns the maximum of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // splitLines splits content into lines
