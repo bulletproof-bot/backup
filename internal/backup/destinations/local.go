@@ -287,7 +287,66 @@ func (d *LocalDestination) Restore(snapshotID string, targetPath string) error {
 		return fmt.Errorf("snapshot not found: %s", snapshotID)
 	}
 
-	// Walk the snapshot directory and copy files
+	// First, collect all files that should exist after restore
+	snapshotFiles := make(map[string]bool)
+	err := filepath.Walk(snapshotPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(snapshotPath, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip metadata
+		if strings.HasPrefix(relativePath, ".bulletproof") {
+			return nil
+		}
+
+		snapshotFiles[relativePath] = true
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to scan snapshot: %w", err)
+	}
+
+	// Remove files from target that don't exist in snapshot
+	err = filepath.Walk(targetPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors on walk
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(targetPath, path)
+		if err != nil {
+			return nil
+		}
+
+		// Keep OpenClaw config files
+		if relativePath == "openclaw.json" || strings.HasPrefix(relativePath, "workspace") {
+			if !snapshotFiles[relativePath] {
+				// File exists in target but not in snapshot - remove it
+				if err := os.Remove(path); err != nil {
+					return fmt.Errorf("failed to remove file %s: %w", relativePath, err)
+				}
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clean target directory: %w", err)
+	}
+
+	// Now copy all files from snapshot to target
 	return filepath.Walk(snapshotPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err

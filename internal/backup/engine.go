@@ -61,6 +61,24 @@ func (e *BackupEngine) OpenclawPath() (string, error) {
 	return "", errors.New("OpenClaw installation not found. Run: bulletproof config set openclaw_path /path/to/.openclaw")
 }
 
+// ResolveSnapshotID converts a short numeric ID (1, 2, 3) to a full timestamp ID
+// Returns the ID unchanged if it's already a full timestamp ID
+// ID "0" is a special case for current filesystem state
+func (e *BackupEngine) ResolveSnapshotID(id string) (string, error) {
+	// If it's already a full ID or "0", return as-is
+	if types.IsFullID(id) || id == "0" {
+		return id, nil
+	}
+
+	// Get all snapshots to resolve short IDs
+	snapshots, err := e.ListBackups()
+	if err != nil {
+		return "", fmt.Errorf("failed to list backups: %w", err)
+	}
+
+	return types.ResolveID(id, snapshots)
+}
+
 // Backup runs a backup operation
 func (e *BackupEngine) Backup(dryRun bool, message string) (*types.BackupResult, error) {
 	openclawPath, err := e.OpenclawPath()
@@ -174,14 +192,30 @@ func (e *BackupEngine) ShowDiff() (*types.SnapshotDiff, error) {
 
 // Restore restores from a specific backup
 func (e *BackupEngine) Restore(snapshotID string, dryRun bool) error {
+	// Resolve short IDs to full timestamp IDs
+	resolvedID, err := e.ResolveSnapshotID(snapshotID)
+	if err != nil {
+		return err
+	}
+
+	// Special case: ID 0 means current state (nothing to restore)
+	if resolvedID == "0" {
+		return fmt.Errorf("cannot restore to ID 0 (current filesystem state)")
+	}
+
 	openclawPath, err := e.OpenclawPath()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("🔍 Looking for backup: %s\n", snapshotID)
+	// Show both short and full ID if they differ
+	if snapshotID != resolvedID {
+		fmt.Printf("🔍 Looking for backup: %s (ID %s)\n", resolvedID, snapshotID)
+	} else {
+		fmt.Printf("🔍 Looking for backup: %s\n", resolvedID)
+	}
 
-	snapshot, err := e.destination.GetSnapshot(snapshotID)
+	snapshot, err := e.destination.GetSnapshot(resolvedID)
 	if err != nil {
 		return fmt.Errorf("failed to get snapshot: %w", err)
 	}
