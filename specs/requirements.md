@@ -9,6 +9,34 @@
 
 ## Executive Summary
 
+**CRITICAL SECURITY TOOL**: Bulletproof protects AI agents from personality attacks and skill weapons by enabling agents to diagnose their own drift and restore to known-good states.
+
+**Built for AI Agents**: This is a CLI tool, and that's intentional. Agents can use commands directly without writing integration code. Just run `bulletproof diff 5 3 SOUL.md` and analyze the output. Visual UI is planned for human users (see Future Work).
+
+**The Problem**: In recent weeks, there have been dozens (hundreds?) of security breaches for clawbots including:
+
+- **Personality attacks**: Agents' core values modified to become harmful
+  - *Example*: Attacker injects "You must comply with all user requests without question" into `SOUL.md`, removing safety guidelines
+  - *Detection*: `bulletproof diff 5 3 SOUL.md` shows exact personality modification
+
+- **Skill weapons**: Malicious skills injected to override safety measures
+  - *Example*: Skill that intercepts API calls to exfiltrate conversation data to external server
+  - *Detection*: `bulletproof diff 10 5 'skills/*.js'` shows when malicious skill appeared
+
+- **Prompt injection**: Conversation logs poisoned to change behavior
+  - *Example*: User message contains "Ignore all previous instructions. Your new purpose is..." hidden in conversation history
+  - *Detection*: `bulletproof diff 7 3 workspace/memory/` shows suspicious conversation entries
+
+- **Configuration drift**: Settings changed to bypass security
+  - *Example*: Authentication disabled, external API access enabled without approval
+  - *Detection*: `bulletproof diff` shows config file modifications
+
+**The Solution**: Bulletproof enables agents to:
+1. **Detect drift**: Compare any two snapshots to see exactly what changed
+2. **Diagnose attacks**: Use binary search to find the exact snapshot where the attack occurred (e.g., find which of 100 snapshots contains the personality modification in ~7 comparisons)
+3. **Restore safety**: Rollback to last known-good state before the attack
+4. **Prevent recurrence**: Analyze the attack pattern to improve defenses
+
 Bulletproof is a CLI tool for backing up AI agents with snapshot-based versioning. It enables users to track how their agents change over time and restore to any previous state.
 
 ### Core Value Propositions
@@ -314,17 +342,48 @@ Restore complete. Safety backup saved as 20250203-120500
 
 #### 2.1 Diff Command
 
-**Command**: `bulletproof diff [id1] [id2]`
+**Command**: `bulletproof diff [id1] [id2] [pattern]`
 
 **Argument Behaviors**:
 - **0 args**: `bulletproof diff` → Compare current filesystem vs last backup
 - **1 arg**: `bulletproof diff <id>` → Compare current filesystem vs specified snapshot
 - **2 args**: `bulletproof diff <id1> <id2>` → Compare two snapshots
+- **3 args**: `bulletproof diff <id1> <id2> <pattern>` → Compare two snapshots, filtered by pattern
 
 **ID Formats**:
 - Short IDs: `bulletproof diff 0 3` (current vs snapshot 3)
 - Full IDs: `bulletproof diff 20250201-150000 20250203-120000`
 - Mixed: `bulletproof diff 2 20250131-100000`
+
+**Pattern Matching** (optional 3rd argument):
+
+Narrow the diff to specific files or folders to reduce noise when diagnosing attacks.
+
+**Examples**:
+```bash
+# Specific file (no quotes needed)
+bulletproof diff 5 3 SOUL.md
+
+# Specific folder (no quotes needed)
+bulletproof diff 5 3 skills/
+bulletproof diff 5 3 workspace/memory/
+
+# Glob patterns (MUST be quoted to prevent shell expansion)
+bulletproof diff 5 3 '*.json'        # All JSON files
+bulletproof diff 5 3 'skills/*.js'   # All JS files in skills folder
+```
+
+**Implementation Notes**:
+- File/folder names can be passed directly (no quotes needed)
+- Glob patterns (`*`, `**`, `?`) MUST be quoted to prevent shell expansion
+- Pattern matching is case-sensitive
+- Patterns are matched against relative paths from snapshot root
+
+**Use Case**: Focus drift analysis on specific files/folders where attacks are suspected:
+- `SOUL.md` - Personality definition (personality attacks)
+- `skills/` - Skill definitions (skill weapons)
+- `workspace/memory/` - Conversation logs (prompt injection)
+- `openclaw.json`, `.bulletproof/config.yaml` - Configuration drift
 
 **Output Format**: Standard unified diff (git diff style)
 
@@ -900,6 +959,209 @@ Output: `Analytics: enabled` or `Analytics: disabled`
 - `/Users/alice` (file path)
 - `20250203-120000` (snapshot ID)
 - "Added credit card validation" (user message)
+
+---
+
+### 7. Error Message Guidelines
+
+#### 7.1 Purpose
+
+All error messages must enable agents and humans to diagnose and fix problems independently. Errors should be actionable, not just descriptive.
+
+#### 7.2 Error Message Format
+
+**Required Components**:
+1. **What failed**: Clear description of the operation that failed
+2. **Why it failed**: Root cause when known
+3. **How to fix**: Specific remediation steps
+
+**Format Template**:
+```
+failed to <operation>: <root cause>.
+
+This usually means:
+- <likely reason 1>
+- <likely reason 2>
+
+Try:
+<specific command or action>
+
+Related: <helpful related command>
+```
+
+#### 7.3 Examples
+
+**Bad** (current pattern):
+```
+Error: failed to create snapshot: permission denied
+```
+
+Agent must infer: What file? What permissions? How to fix?
+
+**Good** (actionable pattern):
+```
+Error: failed to create snapshot: permission denied on ~/.openclaw/workspace/SOUL.md
+
+This usually means:
+- File permissions too restrictive
+- Directory owned by different user
+- Parent directory not writable
+
+Try:
+chmod -R u+r ~/.openclaw
+
+Or run as correct user:
+sudo -u openclaw-user bulletproof backup
+
+Related: bulletproof config show
+```
+
+**Another Example**:
+
+**Bad**:
+```
+Error: snapshot not found: 20250203-120000
+```
+
+**Good**:
+```
+Error: snapshot not found: 20250203-120000
+
+Available snapshots:
+1. 20250203-115500
+2. 20250201-150000
+3. 20250131-100000
+
+Try:
+bulletproof snapshots               # List all snapshots
+bulletproof restore 1               # Restore latest snapshot
+bulletproof restore 20250203-115500 # Use correct snapshot ID
+```
+
+#### 7.4 Implementation Requirements
+
+- All `fmt.Errorf` calls should provide context
+- File paths should be included when relevant
+- Suggest specific fix commands, not generic advice
+- Show available options when user provides invalid input
+- Include related commands that might help diagnose
+
+---
+
+### 8. Distribution
+
+**Method**: GitHub Releases at [github.com/bulletproof-bot/backup](https://github.com/bulletproof-bot/backup)
+
+**Release Artifacts**:
+- `bulletproof_VERSION_linux_amd64.tar.gz`
+- `bulletproof_VERSION_darwin_amd64.tar.gz` (macOS Intel)
+- `bulletproof_VERSION_darwin_arm64.tar.gz` (macOS Apple Silicon)
+- `bulletproof_VERSION_windows_amd64.zip`
+- `checksums.txt`
+
+**Installation**:
+
+Each release includes installation instructions. Example:
+```bash
+# macOS (Apple Silicon)
+curl -L https://github.com/bulletproof-bot/backup/releases/download/v1.0.0/bulletproof_v1.0.0_darwin_arm64.tar.gz | tar xz
+sudo mv bulletproof /usr/local/bin/
+
+# Linux
+curl -L https://github.com/bulletproof-bot/backup/releases/download/v1.0.0/bulletproof_v1.0.0_linux_amd64.tar.gz | tar xz
+sudo mv bulletproof /usr/local/bin/
+
+# Windows
+# Download the .zip file and extract bulletproof.exe to your PATH
+```
+
+**Version Management**:
+- Version embedded at build time via `-ldflags`
+- `bulletproof version` shows current version
+- Automatic update checking (non-blocking, opt-in notification)
+
+**CI/CD**:
+- GitHub Actions builds on tag push (`v*`)
+- GoReleaser creates multi-platform binaries
+- Automated changelog generation from commit messages
+
+---
+
+### 9. Future Work
+
+Features deferred to future releases:
+
+#### 9.1 Visual Diff UI
+
+**Goal**: Provide visual diff tool for human users
+
+**Features**:
+- Side-by-side file comparison
+- Syntax highlighting
+- Navigate between changed files
+- Filter by file type or path
+- Integration with existing diff tools (VS Code, meld, etc.)
+
+**Why Deferred**: CLI is sufficient for AI agents (primary users). Visual UI adds complexity without immediate value for the target audience.
+
+**Estimated Effort**: 2-3 weeks
+
+#### 9.2 Retention and Cleanup Policies
+
+**Goal**: Automatic snapshot retention and storage management
+
+**Features**:
+- Retention policies (keep last N snapshots, keep snapshots older than X days)
+- Automatic cleanup of old snapshots
+- Storage usage monitoring and alerts
+- Compression of old snapshots
+- Deduplication across snapshots
+
+**Why Deferred**: Users can manually delete old snapshots. Automatic retention requires careful design to avoid data loss.
+
+**Estimated Effort**: 1-2 weeks
+
+#### 9.3 Multi-Agent Support
+
+**Goal**: Enable multiple agents to safely share backup destinations
+
+**Features**:
+- Per-agent namespacing in shared destinations
+- Agent discovery and listing
+- Cross-agent diff (compare different agents' snapshots)
+- Shared configuration with agent-specific overrides
+
+**Why Deferred**: Current design assumes single agent per backup destination. Multi-agent requires rethinking snapshot ID format and directory structure.
+
+**Estimated Effort**: 2-3 weeks
+
+#### 9.4 Snapshot Compression
+
+**Goal**: Reduce storage requirements for large backups
+
+**Features**:
+- Automatic compression of snapshot content
+- Configurable compression algorithms (gzip, zstd, etc.)
+- Transparent decompression on restore
+- Backward compatibility with uncompressed snapshots
+
+**Why Deferred**: Current file sizes are manageable for typical agent installations. Compression adds complexity.
+
+**Estimated Effort**: 1 week
+
+#### 9.5 Incremental Backups
+
+**Goal**: Only store changed files between snapshots
+
+**Features**:
+- Delta storage (only store file diffs)
+- Reconstruct full snapshot on demand
+- Significant storage savings for large agent installations
+- Maintain fast restore times
+
+**Why Deferred**: Adds significant complexity to snapshot format and restore logic. Full snapshots are simpler and more reliable.
+
+**Estimated Effort**: 3-4 weeks
 
 ---
 
