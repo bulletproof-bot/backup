@@ -6,6 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Bulletproof is a CLI tool for backing up OpenClaw AI agents with snapshot-based versioning. It tracks changes over time and enables rollback to previous states. The tool was migrated from Dart to Go to leverage Go's cross-compilation and single-binary distribution.
 
+### CLI Commands
+
+- `bulletproof init` - Initialize configuration (prompts for destination path)
+- `bulletproof backup` - Create snapshot of current state
+- `bulletproof restore <id>` - Restore to specific snapshot (creates safety backup first)
+- `bulletproof snapshots` - List all available snapshots with short IDs (1, 2, 3...)
+- `bulletproof diff [id1] [id2]` - Compare snapshots or current state with unified diffs
+- `bulletproof config` - View or modify configuration
+- `bulletproof skill` - Advanced usage and drift diagnosis guide
+- `bulletproof version` - Show version information with update checking
+
+### Documentation
+
+- `specs/product-story.md` - User journeys, security context (personality attacks, skill weapons), and feature overview
+- `specs/requirements.md` - Complete technical specification with edge cases and advanced configuration
+- `README.md` - User-facing documentation with quick start guide and installation instructions
+
 ## Build and Development Commands
 
 ```bash
@@ -83,11 +100,11 @@ internal/
 
 The `Destination` interface (defined in `internal/backup/destination.go`) allows pluggable storage backends:
 
-- **LocalDestination**: Timestamped folders on local filesystem
+- **LocalDestination**: Timestamped folders on local filesystem (multi-folder backups)
 - **GitDestination**: Git commits + tags with optional remote push (using go-git library)
 - **SyncDestination**: Non-timestamped folders for cloud sync services (Dropbox, Google Drive)
 
-The factory pattern in `backup/engine.go::createDestination()` instantiates the appropriate implementation based on config.
+The factory pattern in `backup/engine.go::createDestination()` instantiates the appropriate implementation based on config. **Auto-detection**: If the destination path is a git repository, GitDestination is automatically used; otherwise LocalDestination is used for regular directories.
 
 ### OpenClaw Integration
 
@@ -105,9 +122,10 @@ Critical files backed up (see `config/openclaw.go::GetBackupTargets()`):
 ### Snapshot System
 
 Snapshots are point-in-time backups with SHA-256 file hashing:
-- **ID format**: `yyyyMMdd-HHmmss` timestamp
-- **Diffing**: Compares snapshots to show added/modified/removed files
-- **Skip optimization**: If no changes detected, backup is skipped
+- **ID format**: Full timestamp `yyyyMMdd-HHmmss` used internally and for folder names
+- **User-facing IDs**: CLI displays short IDs (1, 2, 3...) for convenience, sorted by timestamp
+- **Diffing**: Compares snapshots to show added/modified/removed files with unified diffs
+- **Skip optimization**: If no changes detected, backup is skipped (avoids duplicate snapshots)
 
 ## Important Patterns and Conventions
 
@@ -160,6 +178,29 @@ Deferred/removed:
 - `github.com/spf13/cobra` - CLI framework for command structure
 - `gopkg.in/yaml.v3` - YAML config parsing
 - `github.com/go-git/go-git/v5` - Pure Go git implementation
+
+## Architecture Best Practices
+
+- **TDD (Test-Driven Development)** - write the tests first; the implementation code isn't done until the tests pass.
+- **DRY (Don't Repeat Yourself)** – eliminate duplicated logic by extracting shared utilities and modules.
+- **Separation of Concerns** – each module should handle one distinct responsibility.
+- **Single Responsibility Principle (SRP)** – every class/module/function/file should have exactly one reason to change.
+- **Clear Abstractions & Contracts** – expose intent through small, stable interfaces and hide implementation details.
+- **Low Coupling, High Cohesion** – keep modules self-contained, minimize cross-dependencies.
+- **Scalability & Statelessness** – design components to scale horizontally and prefer stateless services when possible.
+- **Observability & Testability** – build in logging, metrics, tracing, and ensure components can be unit/integration tested.
+- **KISS (Keep It Simple, Sir)** - keep solutions as simple as possible.
+- **YAGNI (You're Not Gonna Need It)** – avoid speculative complexity or over-engineering.
+- **Don't Swallow Errors** by catching exceptions, silently filling in required but missing values or adding timeouts when something hangs unexpectedly. All of those are exceptions that should be thrown so that the errors can be seen, root causes can be found and fixes can be applied.
+- **No Placeholder Code** - we're building production code here, not toys.
+- **No Comments for Removed Functionality** - the source is not the place to keep history of what's changed; it's the place to implement the current requirements only.
+- **Layered Architecture** - organize code into clear tiers where each layer depends only on the one(s) below it, keeping logic cleanly separated.
+- **Prefer Non-Nullable Variables** when possible; use nullability sparingly.
+- **Prefer Async Notifications** when possible over inefficient polling.
+- **Consider First Principles** to assess your current architecture against the one you'd use if you started over from scratch.
+- **Eliminate Race Conditions** that might cause dropped or corrupted data
+- **Write for Maintainability** so that the code is clear and readable and easy to maintain by future developers.
+- **Arrange Project Idiomatically** for the language and framework being used, including recommended lints, static analysis tools, folder structure and gitignore entries.
 
 ## Go Idioms and Best Practices
 
