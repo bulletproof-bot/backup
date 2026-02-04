@@ -423,7 +423,7 @@ Nova is now fully operational on Machine B with:
 
 **Key Design Decisions for This Journey:**
 
-1. **Template variables**: Scripts receive environment variables like `$EXPORTS_DIR`, `$BACKUP_DIR`, `$SNAPSHOT_ID`, and `$OPENCLAW_PATH` for flexible path handling
+1. **Environment variables**: Scripts receive environment variables `$EXPORTS_DIR`, `$BACKUP_DIR`, `$SNAPSHOT_ID`, and `$OPENCLAW_PATH` for flexible path handling
 
 2. **Self-contained backups**: Each snapshot includes:
    - Agent files (workspace/, SOUL.md, etc.)
@@ -530,6 +530,13 @@ Works anywhere—local disk, Dropbox, Google Drive, OneDrive, network shares:
 ```yaml
 destination:
   path: ~/bulletproof-backups
+
+exclude:
+  - "*.log"
+  - "*.tmp"
+  - node_modules/
+  - .git/
+  - .DS_Store
 ```
 
 Or for cloud sync:
@@ -537,6 +544,10 @@ Or for cloud sync:
 ```yaml
 destination:
   path: ~/Dropbox/bulletproof-backups
+
+exclude:
+  - "*.log"
+  - "*.tmp"
 ```
 
 Creates timestamped subdirectories:
@@ -568,6 +579,10 @@ If your destination is a git repository, Bulletproof automatically uses git oper
 ```yaml
 destination:
   path: ~/bulletproof-repo  # Must be a git repository
+
+exclude:
+  - "*.log"
+  - "*.tmp"
 ```
 
 Each backup creates:
@@ -798,166 +813,17 @@ bulletproof restore 20250203-115500 # Use correct snapshot ID
 
 This approach transforms errors from dead ends into learning opportunities. Agents can resolve most issues independently without requiring human intervention.
 
-## Edge Cases: The Details Matter
+## Robust Edge Case Handling
 
-### Edge Case 1: Restoring Old Backups with New Scripts
+Bulletproof handles edge cases gracefully with actionable error messages:
 
-**Scenario**: Backup created 3 months ago. Scripts have since changed. Will restore work?
+- **Script compatibility**: Old backups include their original scripts, ensuring restore works even when scripts have changed
+- **Security warnings**: Prompts before executing scripts from untrusted backup sources
+- **Smart ID handling**: ID 0 represents current filesystem state for easy diffing without creating snapshots
+- **No-change detection**: Skips backup if nothing changed (use `--force` to override)
+- **Pattern matching**: Supports files with spaces and glob patterns for flexible filtering
 
-**Solution**: Each snapshot includes the scripts that existed at backup time in `.bulletproof/scripts/`. When restoring snapshot 50, Bulletproof uses the post-restore scripts from snapshot 50, ensuring compatibility with the data format used then.
-
-**Fallback**: If you want to use current scripts (perhaps they're fixed), use:
-
-```bash
-bulletproof restore 50 --no-scripts  # Restore files only
-# Then manually run current scripts if needed
-```
-
-### Edge Case 2: Untrusted Backup Sources
-
-**Scenario**: Restoring a backup received from another user or downloaded from the internet. The backup could contain malicious post-restore scripts.
-
-**Solution**: Before executing any scripts, Bulletproof displays a warning:
-
-```
-⚠️  WARNING: This backup contains custom scripts
-
-Scripts that will execute during restore:
-  - import-graph.sh
-  - import-vectors.py
-
-Only restore backups from trusted sources.
-
-Review scripts with:
-  bulletproof inspect 5 --scripts
-
-Continue? (yes/no):
-```
-
-User can:
-
-1. Type "no" and abort
-2. Review scripts first: `bulletproof inspect 5 --scripts`
-3. Restore without scripts: `bulletproof restore 5 --no-scripts`
-4. Trust and continue: type "yes"
-5. Skip prompt for automation: `bulletproof restore 5 --force`
-
-### Edge Case 3: Empty Snapshot History
-
-**Scenario**: First-time user runs `bulletproof diff 5 3` before creating any backups.
-
-**Solution**:
-
-```
-Error: no snapshots available
-
-You haven't created any backups yet.
-
-Try:
-bulletproof backup               # Create your first backup
-bulletproof --help               # See all commands
-bulletproof skill                # Learn advanced usage
-```
-
-### Edge Case 4: Out-of-Range Short IDs
-
-**Scenario**: User has 5 snapshots but tries `bulletproof restore 10`.
-
-**Solution**:
-
-```
-Error: snapshot ID 10 not found
-
-Available snapshots (IDs 1-5):
-1. 20250203-120000
-2. 20250202-180000
-3. 20250201-180000
-4. 20250131-100000
-5. 20250130-100000
-
-Try:
-bulletproof snapshots      # List all available snapshots
-bulletproof restore 1      # Restore most recent snapshot
-```
-
-### Edge Case 5: ID 0 (Current State)
-
-**Scenario**: User runs `bulletproof diff 0 5`.
-
-**Behavior**: ID 0 always represents the current filesystem state (not a snapshot). This enables comparing current changes against any historical snapshot without creating a new backup first.
-
-**Example output**:
-
-```
-diff --git a/workspace/SOUL.md b/workspace/SOUL.md
---- a/snapshot-5/workspace/SOUL.md (from 20250201-180000)
-+++ b/current/workspace/SOUL.md
-@@ -1,3 +1,5 @@
- # Agent Personality
-
--I am helpful and concise.
-+I am helpful, concise, and analytical.
-+
-+## New section added today
-```
-
-### Edge Case 6: Script Timeout During Backup
-
-**Scenario**: Pre-backup script hangs indefinitely (perhaps database is locked).
-
-**Solution**: After configured timeout (default 60s):
-
-1. Kill the script process
-2. Log the timeout with stderr output
-3. Continue with backup (files still get backed up)
-4. Display warning in output:
-
-```
-Running pre-backup scripts...
-  ✗ export-graph-memory (timeout after 60s)
-    Last output: "Waiting for database lock..."
-  ✓ export-vectors (5.1s)
-
-⚠️  Warning: Script timeout occurred. Backup created but may be incomplete.
-
-Review logs: bulletproof config path
-Consider increasing timeout in config.yaml
-```
-
-### Edge Case 7: No Changes Since Last Backup
-
-**Scenario**: User runs `bulletproof backup` but no files have changed.
-
-**Solution**: Skip creating duplicate snapshot:
-
-```
-Checking for changes since last backup...
-
-No changes detected since snapshot 20250203-120000.
-
-Backup skipped. Use --force to create backup anyway.
-```
-
-This prevents snapshot bloat while allowing forced backups when needed for other reasons (e.g., scheduled backup that includes external data from scripts).
-
-### Edge Case 8: Pattern Matching with Spaces
-
-**Scenario**: User wants to diff a file with spaces in the name.
-
-**Solution**: Patterns are matched after path normalization:
-
-```bash
-# File: "workspace/my resume.md"
-
-# Works:
-bulletproof diff 5 3 "workspace/my resume.md"
-
-# Also works:
-bulletproof diff 5 3 'workspace/my resume.md'
-
-# Glob also works:
-bulletproof diff 5 3 'workspace/*.md'
-```
+For complete edge case documentation and error handling details, see the [requirements specification](requirements.md#edge-cases--error-handling).
 
 ## Distribution and Updates
 
@@ -983,6 +849,14 @@ sudo mv bulletproof /usr/local/bin/
 # Windows
 # Download .zip and extract bulletproof.exe to your PATH
 ```
+
+**Platform-Specific OpenClaw Detection**: Bulletproof automatically detects OpenClaw installations across platforms:
+
+- **macOS/Linux**: `~/.openclaw`
+- **Windows**: `%USERPROFILE%\.openclaw`
+- **Docker**: `/data/.openclaw`, `/openclaw`, or `/app/.openclaw`
+
+No configuration needed—Bulletproof finds your agent installation automatically.
 
 ### Automatic Update Checking
 
