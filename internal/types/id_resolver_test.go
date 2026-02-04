@@ -33,14 +33,19 @@ func TestIsFullID(t *testing.T) {
 		id       string
 		expected bool
 	}{
-		{"20260203-120000", true},
-		{"20260203-235959", true},
-		{"20260101-000000", true},
+		{"20260203-120000", true},      // Old format (backward compatibility)
+		{"20260203-235959", true},      // Old format
+		{"20260101-000000", true},      // Old format
+		{"20260203-120000-123", true},  // New format with milliseconds
+		{"20260203-235959-999", true},  // New format with milliseconds
+		{"20260101-000000-000", true},  // New format with milliseconds
 		{"1", false},
 		{"42", false},
-		{"2026020-120000", false},  // Too short
-		{"202602033-120000", false}, // Too long
-		{"20260203-12000", false},  // Missing second digit
+		{"2026020-120000", false},      // Too short
+		{"202602033-120000", false},    // Too long
+		{"20260203-12000", false},      // Missing second digit
+		{"20260203-120000-12", false},  // Milliseconds too short
+		{"20260203-120000-1234", false}, // Milliseconds too long
 		{"abc", false},
 		{"", false},
 	}
@@ -54,12 +59,12 @@ func TestIsFullID(t *testing.T) {
 }
 
 func TestResolveID(t *testing.T) {
-	// Create test snapshots
+	// Create test snapshots (using new format with milliseconds)
 	now := time.Now()
 	snapshots := []*SnapshotInfo{
-		{ID: "20260203-120000", Timestamp: now.Add(-3 * time.Hour)}, // Oldest
-		{ID: "20260203-140000", Timestamp: now.Add(-2 * time.Hour)},
-		{ID: "20260203-160000", Timestamp: now.Add(-1 * time.Hour)}, // Latest
+		{ID: "20260203-120000-000", Timestamp: now.Add(-3 * time.Hour)}, // Oldest
+		{ID: "20260203-140000-000", Timestamp: now.Add(-2 * time.Hour)},
+		{ID: "20260203-160000-000", Timestamp: now.Add(-1 * time.Hour)}, // Latest
 	}
 
 	tests := []struct {
@@ -77,19 +82,19 @@ func TestResolveID(t *testing.T) {
 		{
 			name:      "ID 1 (latest)",
 			id:        "1",
-			wantID:    "20260203-160000",
+			wantID:    "20260203-160000-000",
 			wantError: false,
 		},
 		{
 			name:      "ID 2 (second-latest)",
 			id:        "2",
-			wantID:    "20260203-140000",
+			wantID:    "20260203-140000-000",
 			wantError: false,
 		},
 		{
 			name:      "ID 3 (oldest)",
 			id:        "3",
-			wantID:    "20260203-120000",
+			wantID:    "20260203-120000-000",
 			wantError: false,
 		},
 		{
@@ -99,7 +104,13 @@ func TestResolveID(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name:      "Full ID (passthrough)",
+			name:      "Full ID new format (passthrough)",
+			id:        "20260203-140000-000",
+			wantID:    "20260203-140000-000",
+			wantError: false,
+		},
+		{
+			name:      "Full ID old format (passthrough)",
 			id:        "20260203-140000",
 			wantID:    "20260203-140000",
 			wantError: false,
@@ -141,18 +152,18 @@ func TestResolveID(t *testing.T) {
 func TestAssignShortIDs(t *testing.T) {
 	now := time.Now()
 	snapshots := []*SnapshotInfo{
-		{ID: "20260203-120000", Timestamp: now.Add(-3 * time.Hour)}, // Oldest
-		{ID: "20260203-140000", Timestamp: now.Add(-2 * time.Hour)},
-		{ID: "20260203-160000", Timestamp: now.Add(-1 * time.Hour)}, // Latest
+		{ID: "20260203-120000-000", Timestamp: now.Add(-3 * time.Hour)}, // Oldest
+		{ID: "20260203-140000-000", Timestamp: now.Add(-2 * time.Hour)},
+		{ID: "20260203-160000-000", Timestamp: now.Add(-1 * time.Hour)}, // Latest
 	}
 
 	shortIDs := AssignShortIDs(snapshots)
 
 	// Verify mappings
 	expected := map[string]int{
-		"20260203-160000": 1, // Latest = 1
-		"20260203-140000": 2,
-		"20260203-120000": 3, // Oldest = 3
+		"20260203-160000-000": 1, // Latest = 1
+		"20260203-140000-000": 2,
+		"20260203-120000-000": 3, // Oldest = 3
 	}
 
 	if len(shortIDs) != len(expected) {
@@ -182,15 +193,15 @@ func TestResolveID_EmptySnapshots(t *testing.T) {
 
 func TestResolveID_SingleSnapshot(t *testing.T) {
 	snapshots := []*SnapshotInfo{
-		{ID: "20260203-120000", Timestamp: time.Now()},
+		{ID: "20260203-120000-000", Timestamp: time.Now()},
 	}
 
 	id, err := ResolveID("1", snapshots)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	if id != "20260203-120000" {
-		t.Errorf("ResolveID(\"1\") = %q, want %q", id, "20260203-120000")
+	if id != "20260203-120000-000" {
+		t.Errorf("ResolveID(\"1\") = %q, want %q", id, "20260203-120000-000")
 	}
 
 	// ID 2 should be out of range

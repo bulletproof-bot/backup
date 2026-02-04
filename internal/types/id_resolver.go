@@ -14,8 +14,15 @@ func IsShortID(id string) bool {
 }
 
 // IsFullID returns true if the given ID is a full timestamp ID
+// Supports both old format (yyyyMMdd-HHmmss) and new format (yyyyMMdd-HHmmss-SSS)
 func IsFullID(id string) bool {
-	matched, _ := regexp.MatchString(`^\d{8}-\d{6}$`, id)
+	// New format with milliseconds
+	matched, _ := regexp.MatchString(`^\d{8}-\d{6}-\d{3}$`, id)
+	if matched {
+		return true
+	}
+	// Old format for backward compatibility
+	matched, _ = regexp.MatchString(`^\d{8}-\d{6}$`, id)
 	return matched
 }
 

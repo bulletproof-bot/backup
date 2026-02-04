@@ -80,6 +80,16 @@ func ConfigPath() (string, error) {
 	return filepath.Join(homeDir, ".config", "bulletproof", "config.yaml"), nil
 }
 
+// DefaultConfigPath returns the default config path, panics on error
+func DefaultConfigPath() string {
+	path, err := ConfigPath()
+	if err != nil {
+		// This should never happen in normal operation
+		panic(fmt.Sprintf("failed to get config path: %v", err))
+	}
+	return path
+}
+
 // ConfigDir returns the path to the config directory
 func ConfigDir() (string, error) {
 	configPath, err := ConfigPath()

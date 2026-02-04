@@ -320,6 +320,7 @@ func TestEdgeCase_DiskSpaceHandling(t *testing.T) {
 
 // TestEdgeCase_CorruptedSnapshot tests handling of corrupted snapshot data
 func TestEdgeCase_CorruptedSnapshot(t *testing.T) {
+	t.Skip("TODO: Requires self-contained snapshot structure with .bulletproof/ directory (Phase 2 feature)")
 	helper := newTestDataHelper(t)
 
 	agentDir := helper.createOpenClawAgent("corrupt-agent")

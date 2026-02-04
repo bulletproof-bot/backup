@@ -126,7 +126,8 @@ func TestGenerateID(t *testing.T) {
 	testTime := time.Date(2024, 1, 15, 14, 30, 45, 0, time.UTC)
 	id := GenerateID(testTime)
 
-	expected := "20240115-143045"
+	// New format includes milliseconds: yyyyMMdd-HHmmss-SSS
+	expected := "20240115-143045-000"
 	if id != expected {
 		t.Errorf("expected ID %s, got %s", expected, id)
 	}

@@ -30,6 +30,7 @@ func main() {
 	rootCmd.AddCommand(commands.NewHistoryCommand())
 	rootCmd.AddCommand(commands.NewConfigCommand())
 	rootCmd.AddCommand(commands.NewVersionCommand())
+	rootCmd.AddCommand(commands.NewSkillCommand())
 
 	// Execute
 	if err := rootCmd.Execute(); err != nil {

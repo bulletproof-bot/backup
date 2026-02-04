@@ -80,13 +80,35 @@ func (d *LocalDestination) Save(sourcePath string, snapshot *types.Snapshot, mes
 		}
 	}
 
-	// Save metadata
+	// Create .bulletproof directory within snapshot for self-contained structure
+	if d.Timestamped {
+		bulletproofDir := filepath.Join(targetPath, ".bulletproof")
+		if err := os.MkdirAll(bulletproofDir, 0755); err != nil {
+			return fmt.Errorf("failed to create .bulletproof directory: %w", err)
+		}
+
+		// Save snapshot.json in the snapshot's .bulletproof directory
+		snapshotFile := filepath.Join(bulletproofDir, "snapshot.json")
+		snapshotJSON, err := json.MarshalIndent(snapshot, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal snapshot: %w", err)
+		}
+		if err := os.WriteFile(snapshotFile, snapshotJSON, 0644); err != nil {
+			return fmt.Errorf("failed to write snapshot file: %w", err)
+		}
+
+		// Copy config file to snapshot's .bulletproof directory for platform migration
+		// Config path is stored in the engine, we need to pass it through
+		// For now, we'll add this in the engine layer
+	}
+
+	// Also save metadata in central location for quick lookups
 	metaDir := d.metadataPath()
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return fmt.Errorf("failed to create metadata directory: %w", err)
 	}
 
-	// Save snapshot info
+	// Save snapshot info in central metadata
 	snapshotFile := filepath.Join(metaDir, snapshot.ID+".json")
 	snapshotJSON, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
@@ -142,9 +164,24 @@ func (d *LocalDestination) copyFile(src, dst string) error {
 	}
 	defer sourceFile.Close()
 
+	// Get source file info for permissions
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+
 	// Create destination directory
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// If destination file exists and is readonly, make it writable first
+	if destInfo, err := os.Stat(dst); err == nil {
+		if destInfo.Mode().Perm()&0200 == 0 { // Check if not writable
+			if err := os.Chmod(dst, 0644); err != nil {
+				return fmt.Errorf("failed to make destination writable: %w", err)
+			}
+		}
 	}
 
 	// Create destination file
@@ -157,6 +194,11 @@ func (d *LocalDestination) copyFile(src, dst string) error {
 	// Copy contents
 	if _, err := io.Copy(destFile, sourceFile); err != nil {
 		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	// Restore original permissions
+	if err := os.Chmod(dst, sourceInfo.Mode().Perm()); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
 
 	return nil

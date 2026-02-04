@@ -38,8 +38,11 @@ type SnapshotDiff struct {
 }
 
 // GenerateID generates a snapshot ID from a timestamp
+// Format: yyyyMMdd-HHmmss-SSS (includes milliseconds to prevent collisions)
 func GenerateID(t time.Time) string {
-	return t.Format("20060102-150405")
+	// Format with milliseconds: 20060102-150405-000
+	ms := t.UnixMilli() % 1000
+	return fmt.Sprintf("%s-%03d", t.Format("20060102-150405"), ms)
 }
 
 // FromDirectory creates a snapshot from a directory

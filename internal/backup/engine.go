@@ -3,6 +3,9 @@ package backup
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/bulletproof-bot/backup/internal/backup/destinations"
 	"github.com/bulletproof-bot/backup/internal/config"
@@ -79,6 +82,32 @@ func (e *BackupEngine) ResolveSnapshotID(id string) (string, error) {
 	return types.ResolveID(id, snapshots)
 }
 
+// Config returns the backup engine's configuration
+func (e *BackupEngine) Config() *config.Config {
+	return e.config
+}
+
+// Destination returns the backup engine's destination
+func (e *BackupEngine) Destination() Destination {
+	return e.destination
+}
+
+// GetSnapshot retrieves a snapshot by ID (supports both short and full IDs)
+func (e *BackupEngine) GetSnapshot(id string) (*types.Snapshot, error) {
+	// Resolve short ID to full ID
+	resolvedID, err := e.ResolveSnapshotID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// ID 0 is special - it means current state, not a stored snapshot
+	if resolvedID == "0" {
+		return nil, fmt.Errorf("ID 0 represents current filesystem state, not a stored snapshot")
+	}
+
+	return e.destination.GetSnapshot(resolvedID)
+}
+
 // Backup runs a backup operation
 func (e *BackupEngine) Backup(dryRun bool, message string) (*types.BackupResult, error) {
 	openclawPath, err := e.OpenclawPath()
@@ -148,12 +177,60 @@ func (e *BackupEngine) Backup(dryRun bool, message string) (*types.BackupResult,
 		return nil, fmt.Errorf("failed to save backup: %w", err)
 	}
 
+	// Copy config to snapshot for self-contained backups (Phase 2 feature)
+	if err := e.copyConfigToSnapshot(snapshot.ID); err != nil {
+		// Non-fatal - log but continue
+		fmt.Printf("⚠️  Warning: failed to copy config to snapshot: %v\n", err)
+	}
+
 	fmt.Printf("✅ Backup complete: %s\n", snapshot.ID)
 
 	return &types.BackupResult{
 		Snapshot: snapshot,
 		Diff:     diff,
 	}, nil
+}
+
+// copyConfigToSnapshot copies the config file to the snapshot's .bulletproof directory
+func (e *BackupEngine) copyConfigToSnapshot(snapshotID string) error {
+	// Determine config source path
+	configPath := config.DefaultConfigPath()
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
+	}
+
+	// Determine snapshot path based on destination type
+	var snapshotPath string
+	switch dest := e.destination.(type) {
+	case *destinations.LocalDestination:
+		if dest.Timestamped {
+			snapshotPath = filepath.Join(dest.BasePath, snapshotID)
+		} else {
+			// Sync destinations don't have timestamped folders
+			return nil
+		}
+	case *destinations.GitDestination:
+		// Git destinations store in repo root, use .bulletproof there
+		localPath := dest.RepoPath
+		if strings.HasPrefix(dest.RepoPath, "git@") || strings.HasPrefix(dest.RepoPath, "https://") {
+			homeDir, _ := os.UserHomeDir()
+			repoName := filepath.Base(strings.TrimSuffix(dest.RepoPath, ".git"))
+			localPath = filepath.Join(homeDir, ".cache", "bulletproof", "repos", repoName)
+		}
+		snapshotPath = localPath
+	default:
+		return nil
+	}
+
+	// Write config to .bulletproof/config.yaml in snapshot
+	bulletproofDir := filepath.Join(snapshotPath, ".bulletproof")
+	configFile := filepath.Join(bulletproofDir, "config.yaml")
+	if err := os.WriteFile(configFile, configData, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
 }
 
 // ListBackups returns all available backups

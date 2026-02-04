@@ -567,12 +567,15 @@ func TestRestore_SafetyBackup(t *testing.T) {
 	result2, err := engine.Backup(false, "Modified state")
 	helper.assertNoError(err, "Second backup failed")
 
+	// Make another change after the backup so safety backup will be created
+	helper.addSkill(agentDir, "new-skill.js", "function newSkill() { return 'new'; }")
+
 	// Get snapshot count before restore
 	snapshotsBefore, err := engine.ListBackups()
 	helper.assertNoError(err, "ListBackups failed")
 	countBefore := len(snapshotsBefore)
 
-	// Restore to first state
+	// Restore to first state (this should create a safety backup with the current modified state)
 	err = engine.Restore(result1.Snapshot.ID, false)
 	helper.assertNoError(err, "Restore failed")
 
