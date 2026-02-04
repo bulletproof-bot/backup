@@ -2,6 +2,18 @@
 
 Snapshot-based backup and versioning for AI agents. Detect drift, diagnose attacks, and restore to known-good states.
 
+## The Key Capability
+
+**Bulletproof enables agents to detect their own compromises using their own AI or that of another agent, known to be uncompromised.**
+
+Bulletproof doesn't embed AI or require API keys. Instead, it provides:
+
+- **Structured CLI output** — Agents parse diffs and analyze changes using their native LLM capabilities
+- **Teaching methodology** — The `bulletproof skill` command trains agents in drift detection via binary search
+- **Agent-driven analysis** — Agents provide the intelligence to diagnose attacks
+
+The tool provides the **data**. The agent provides the **intelligence**. The skill provides the **methodology**. This separation is what makes autonomous security analysis possible.
+
 ## What It Does
 
 AI agents change over time—skills evolve, personalities drift, configurations shift. When an agent is compromised through personality attacks, skill weapons, or prompt injection, you need tools to:
@@ -69,6 +81,7 @@ destination:
 ```
 
 Creates timestamped subdirectories:
+
 ```
 ~/bulletproof-backups/
 ├── 20250203-120000/
@@ -82,7 +95,7 @@ If your destination is a git repository, Bulletproof automatically uses git oper
 
 ```yaml
 destination:
-  path: ~/bulletproof-repo  # Must be a git repository
+  path: ~/bulletproof-repo # Must be a git repository
 ```
 
 Each backup creates a git commit and tag. Git deduplication saves storage space.
@@ -104,18 +117,21 @@ Default exclusions: `*.log`, `*.tmp`, `node_modules/`, `.git/`
 Download the latest release for your platform:
 
 **macOS (Apple Silicon):**
+
 ```bash
 curl -L https://github.com/bulletproof-bot/backup/releases/latest/download/bulletproof_darwin_arm64.tar.gz | tar xz
 sudo mv bulletproof /usr/local/bin/
 ```
 
 **macOS (Intel):**
+
 ```bash
 curl -L https://github.com/bulletproof-bot/backup/releases/latest/download/bulletproof_darwin_amd64.tar.gz | tar xz
 sudo mv bulletproof /usr/local/bin/
 ```
 
 **Linux:**
+
 ```bash
 curl -L https://github.com/bulletproof-bot/backup/releases/latest/download/bulletproof_linux_amd64.tar.gz | tar xz
 sudo mv bulletproof /usr/local/bin/
@@ -143,10 +159,12 @@ sudo cp bin/bulletproof /usr/local/bin/
 - `bulletproof snapshots` - List all available snapshots
 - `bulletproof diff [id1] [id2]` - Compare snapshots or current state
 - `bulletproof config` - View or modify configuration
-- `bulletproof skill` - Learn advanced usage and drift diagnosis
+- `bulletproof skill` - **Learn drift detection methodology (teaches agents to use their AI for analysis)**
 - `bulletproof version` - Show version information
 
 Run `bulletproof --help` for detailed command usage.
+
+**Key**: The `skill` command doesn't automate drift detection—it teaches agents how to perform analysis using their own LLM capabilities. Agents read the guide, internalize the methodology, and apply their intelligence to diagnose compromises autonomously.
 
 ## Configuration
 

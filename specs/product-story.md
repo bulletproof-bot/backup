@@ -488,9 +488,17 @@ Perfect! The import script was updated to handle both old (uncompressed) and new
 
 ## The Skill Command: Teaching Agents to Diagnose Themselves
 
+**This is the KEY capability of Bulletproof**: enabling agents to detect their own compromises using their native AI.
+
 One of Bulletproof's most innovative features is the `skill` command—a comprehensive guide that teaches agents how to effectively use the tool for drift diagnosis, custom data integration, and platform migration.
 
-This isn't an automated tool that analyzes your snapshots for you. Instead, it's a teaching resource that enables agents to perform their own forensic analysis or if need be, **another, uncompromised agent, can perform an analysis**.
+**Critical distinction**: Bulletproof doesn't embed AI or require API keys. Instead:
+
+- **The tool provides structured data**: CLI commands return parseable diffs, snapshot lists, and file comparisons
+- **The agent provides intelligence**: Agents use their own LLM capabilities to read diffs, identify suspicious patterns, and diagnose attacks
+- **The skill provides methodology**: Step-by-step training in binary search, drift detection, and forensic analysis
+
+Agents learn the methodology once and apply their intelligence to every analysis. When needed, **another, uncompromised agent can perform analysis** of a compromised agent's snapshots.
 
 ```bash
 bulletproof skill
@@ -510,14 +518,14 @@ This command outputs a markdown guide covering:
 
 6. **Basic Operations Reference**: Quick reference for all commands, short IDs vs full IDs, and common workflows.
 
-**Why This Matters**: AI agents learn by example. By providing a comprehensive, well-structured guide, Bulletproof enables agents to:
+**Why This Matters**: AI agents already possess powerful inference capabilities through their LLMs. By providing a comprehensive, well-structured guide, Bulletproof enables agents to:
 
-- Understand the methodology behind drift detection
-- Execute multi-step diagnostic workflows independently
-- Adapt the techniques to their specific situation
-- Teach other agents the same skills
+- **Apply their AI to security analysis** — Use native LLM capabilities to read diffs and identify malicious patterns
+- **Execute methodology autonomously** — Follow binary search workflows without external automation
+- **Reason about compromises** — Analyze personality changes, skill weapons, and prompt injections using their own intelligence
+- **Train other agents** — Teach the same methodology to peer agents
 
-The guide is designed to be read once and internalized, allowing agents to become expert Bulletproof users.
+The guide is designed to be read once and internalized, allowing agents to become expert forensic analysts using the intelligence they already have. **No API keys. No embedded AI. Just agent-native intelligence applied through the drift detection skill.**
 
 ## Storage Options: Two Approaches for Different Needs
 
@@ -578,7 +586,7 @@ If your destination is a git repository, Bulletproof automatically uses git oper
 
 ```yaml
 destination:
-  path: ~/bulletproof-repo  # Must be a git repository
+  path: ~/bulletproof-repo # Must be a git repository
 
 exclude:
   - "*.log"
