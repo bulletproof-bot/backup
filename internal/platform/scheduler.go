@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // SetupAutoBackup installs platform-specific scheduled backup service
@@ -109,7 +110,7 @@ func setupCronJob(backupTime string) error {
 	existingCron := string(existingCronBytes)
 
 	// Check if entry already exists
-	cronEntry := fmt.Sprintf("%s %s * * * /usr/local/bin/bulletproof backup\n", minute, hour)
+	cronEntry := fmt.Sprintf("# Bulletproof Backup - Auto-generated\n%s %s * * * /usr/local/bin/bulletproof backup\n", minute, hour)
 	newCron := existingCron
 	if newCron == "" || newCron[len(newCron)-1] != '\n' {
 		newCron += "\n"
@@ -209,8 +210,33 @@ func removeLinuxAutoBackup() error {
 	}
 
 	// Also try to remove from cron
-	existingCronBytes, _ := exec.Command("crontab", "-l").Output()
-	_ = existingCronBytes // TODO: Filter out bulletproof entries
+	if _, err := exec.LookPath("crontab"); err == nil {
+		existingCronBytes, err := exec.Command("crontab", "-l").Output()
+		if err != nil {
+			// No existing crontab or error reading - nothing to do
+			return nil
+		}
+
+		// Filter out bulletproof entries
+		existingCron := string(existingCronBytes)
+		var newLines []string
+		for _, line := range strings.Split(existingCron, "\n") {
+			// Skip bulletproof entries (identified by comment or command)
+			if strings.Contains(line, "bulletproof") ||
+				strings.Contains(line, "# Bulletproof Backup") {
+				continue
+			}
+			newLines = append(newLines, line)
+		}
+
+		// Write back filtered crontab
+		newCron := strings.Join(newLines, "\n")
+		cmd := exec.Command("crontab", "-")
+		cmd.Stdin = strings.NewReader(newCron)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to update crontab: %w", err)
+		}
+	}
 
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/bulletproof-bot/backup/internal/backup/scripts"
 	"github.com/bulletproof-bot/backup/internal/config"
 	"github.com/bulletproof-bot/backup/internal/types"
+	"github.com/bulletproof-bot/backup/internal/utils"
 )
 
 // BackupEngine orchestrates backups and restores
@@ -357,7 +358,10 @@ func (e *BackupEngine) Backup(dryRun bool, message string, noScripts bool, force
 // copyConfigToSnapshot copies the config file to the snapshot's .bulletproof directory
 func (e *BackupEngine) copyConfigToSnapshot(snapshotID string) error {
 	// Determine config source path
-	configPath := config.DefaultConfigPath()
+	configPath, err := config.ConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config: %w", err)
@@ -760,6 +764,16 @@ func (e *BackupEngine) saveMultiSource(sources []string, snapshot *types.Snapsho
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
+	// Validate no duplicate source basenames (would cause wrong file restoration)
+	basenames := make(map[string]string)
+	for _, src := range sources {
+		base := filepath.Base(src)
+		if existing, ok := basenames[base]; ok {
+			return fmt.Errorf("duplicate source basenames: %s and %s both have basename %q - cannot determine correct source for files", existing, src, base)
+		}
+		basenames[base] = src
+	}
+
 	// Copy files from each source
 	fmt.Printf("  Copying %d files from %d sources...\n", len(snapshot.Files), len(sources))
 	for _, fileSnapshot := range snapshot.Files {
@@ -793,7 +807,7 @@ func (e *BackupEngine) saveMultiSource(sources []string, snapshot *types.Snapsho
 		}
 
 		// Copy file
-		if err := copyFile(sourceFile, destFile); err != nil {
+		if err := utils.CopyFile(sourceFile, destFile); err != nil {
 			return fmt.Errorf("failed to copy file %s: %w", fileSnapshot.Path, err)
 		}
 	}
@@ -821,37 +835,6 @@ func (e *BackupEngine) saveSnapshotMetadata(basePath string, snapshot *types.Sna
 
 	if err := os.WriteFile(snapshotFile, snapshotJSON, 0644); err != nil {
 		return fmt.Errorf("failed to write snapshot file: %w", err)
-	}
-
-	return nil
-}
-
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destFile.Close()
-
-	if _, err := destFile.ReadFrom(sourceFile); err != nil {
-		return fmt.Errorf("failed to copy file: %w", err)
-	}
-
-	// Copy file permissions
-	sourceInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat source file: %w", err)
-	}
-
-	if err := os.Chmod(dst, sourceInfo.Mode()); err != nil {
-		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
 
 	return nil

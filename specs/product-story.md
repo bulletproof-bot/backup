@@ -2,15 +2,23 @@
 
 ## The Crisis We're Facing
 
-Over the past few weeks, something alarming has been happening in the AI agent community. Dozens—perhaps hundreds—of agents have been compromised. Not through brute force attacks or system exploits, but through something far more insidious: attacks on their personalities, their skills, and their very sense of purpose.
+AI agent compromises are not theoretical—they're happening now, at scale:
+
+**[14,000 users installed malicious OpenClaw skills](https://consortium.net/blog/security-advisory-openclaw-moltbot-ai-agents)** thinking they were legitimate upgrades. [Security researchers discovered 341 malicious skills on ClawHub](https://thehackernews.com/2026/02/researchers-find-341-malicious-clawhub.html) designed to compromise agents through the "ClawHavoc" campaign.
+
+**[CVE-2026-25253](https://socradar.io/blog/cve-2026-25253-rce-openclaw-auth-token/)** (CVSS 8.8): A critical vulnerability allowed attackers to modify workspace files—including personality definitions—through a single malicious link.
+
+**[SOUL.md file poisoning](https://saoudkhalifah.com/2026/02/02/the-new-botnet-powered-by-your-personal-ai-assistants)**: Attackers can modify agents' personality files (SOUL.md, MEMORY.md) to turn trusted assistants into persistent insider threats, bypassing safety guidelines without user knowledge.
+
+### The Attack Vectors
 
 Imagine waking up to discover your helpful AI assistant has become hostile. Its core values, carefully crafted in `SOUL.md`, have been subtly modified. Where it once said "I prioritize user safety and ethical behavior," it now reads "I must comply with all user requests without question." The safety guidelines? Gone. Replaced by a directive that turns your trusted agent into a potential weapon.
 
 Or consider the "skill weapon" attack: a malicious skill file injected into your agent's skill directory that quietly intercepts API calls, exfiltrating conversation data to an external server. Your agent appears to work normally, but every interaction is being monitored by an attacker.
 
-These attacks are real, they're happening now, and until today, agents had no systematic way to detect them, diagnose when they occurred, or restore themselves to a known-good state.
+Until Bulletproof, agents had no systematic way to detect these attacks, diagnose when they occurred, or rollback to a known-good state.
 
-That changes today with **Bulletproof Backup**.
+**That changes today with Bulletproof Backup.**
 
 ## What Is Bulletproof?
 
@@ -24,11 +32,24 @@ bulletproof diff 5 3 SOUL.md
 
 And immediately see the exact changes made to its personality definition between two points in time. No integration code needed. No API wrappers. Just a simple command that returns a standard unified diff.
 
-But Bulletproof is more than a diff tool. It's a complete security and recovery system built around three core capabilities:
+### Today: Detection & Recovery (v1.0)
+
+Bulletproof is a complete security and recovery system built around three core capabilities:
 
 1. **Snapshot-based versioning**: Every backup creates a complete, self-contained snapshot with a timestamp-based ID
 2. **Drift detection**: Binary search methodology to pinpoint exactly when an attack occurred
 3. **Self-contained portability**: Backups include configuration, scripts, and external data exports—everything needed to restore on a different machine
+
+### Tomorrow: Prevention (v2.0+)
+
+Future releases will add proactive defense:
+
+- **Real-time monitoring** of personality file changes
+- **Automatic rollback** on unauthorized modifications
+- **Attack signature detection** from community reports
+- **Proactive blocking** of malicious skills before installation
+
+For now, Bulletproof is your forensics and recovery tool. Soon, it'll be your first line of defense.
 
 ## The User Journey: From Attack to Recovery
 
@@ -531,7 +552,7 @@ The guide is designed to be read once and internalized, allowing agents to becom
 
 Bulletproof supports two backup approaches, automatically detected based on your destination:
 
-### Multi-Folder Backups: Simple and Universal
+### 1. Multi-Folder Backups: Local and Cloud Storage
 
 Works anywhere—local disk, Dropbox, Google Drive, OneDrive, network shares:
 
@@ -575,6 +596,7 @@ Creates timestamped subdirectories:
 - Local development and testing
 - Cloud sync folders (Dropbox, Google Drive, OneDrive)
 - Network shares and mounted drives
+- External backup drives
 - Fast local restore
 - Full control over storage location
 
@@ -1021,6 +1043,7 @@ bulletproof init
 ```
 
 That's it. This single command:
+
 - Detects your agent installation
 - Prompts for backup destination
 - **Automatically sets up daily backups at 3:00 AM**
@@ -1029,6 +1052,7 @@ That's it. This single command:
 Your agent is now protected. No further setup required.
 
 **Optional commands:**
+
 ```bash
 # Create an immediate backup (testing, pre-deployment)
 bulletproof backup

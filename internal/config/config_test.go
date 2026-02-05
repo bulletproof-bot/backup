@@ -181,3 +181,27 @@ func TestValidate(t *testing.T) {
 		t.Error("Validate() should fail on non-existent directory")
 	}
 }
+
+func TestConfigPath_NoHomeDir(t *testing.T) {
+	// Save original HOME
+	originalHome := os.Getenv("HOME")
+	defer func() {
+		if originalHome != "" {
+			os.Setenv("HOME", originalHome)
+		}
+	}()
+
+	// Unset HOME to simulate container environment where HOME is not set
+	os.Unsetenv("HOME")
+
+	// ConfigPath should return an error, not panic
+	_, err := ConfigPath()
+	if err == nil {
+		t.Error("ConfigPath() should return error when HOME is not set")
+	}
+
+	// Verify the error message mentions home directory
+	if err != nil && err.Error() == "" {
+		t.Error("ConfigPath() should return a descriptive error message")
+	}
+}

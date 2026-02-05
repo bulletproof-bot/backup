@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/bulletproof-bot/backup/internal/config"
@@ -16,6 +17,11 @@ import (
 const (
 	plausibleDomain = "bulletproof.bot"
 	plausibleAPI    = "https://plausible.io/api/event"
+)
+
+var (
+	// userIDMutex protects concurrent UserID generation
+	userIDMutex sync.Mutex
 )
 
 // Event represents an analytics event
@@ -44,21 +50,28 @@ func TrackEvent(cfg *config.Config, event Event) {
 		return
 	}
 
-	// Generate user ID if not set
-	if cfg.Analytics.UserID == "" {
-		userID, err := GenerateUserID()
+	// Generate user ID if not set (with mutex protection)
+	userIDMutex.Lock()
+	userID := cfg.Analytics.UserID
+	if userID == "" {
+		var err error
+		userID, err = GenerateUserID()
 		if err != nil {
+			userIDMutex.Unlock()
 			return // Silent failure
 		}
 		cfg.Analytics.UserID = userID
 		if err := cfg.Save(); err != nil {
+			userIDMutex.Unlock()
 			return // Silent failure
 		}
 	}
+	userIDMutex.Unlock()
 
-	// Send event asynchronously
+	// Capture values for goroutine (avoid race condition)
+	eventCopy := event
 	go func() {
-		if err := sendEvent(cfg.Analytics.UserID, event); err != nil {
+		if err := sendEvent(userID, eventCopy); err != nil {
 			// Silent failure - analytics should never disrupt user experience
 			return
 		}

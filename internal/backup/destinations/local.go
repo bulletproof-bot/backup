@@ -3,13 +3,13 @@ package destinations
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/bulletproof-bot/backup/internal/types"
+	"github.com/bulletproof-bot/backup/internal/utils"
 )
 
 // LocalDestination stores backups as folders on the local filesystem.
@@ -75,7 +75,7 @@ func (d *LocalDestination) Save(sourcePath string, snapshot *types.Snapshot, mes
 		sourceFile := filepath.Join(sourcePath, filePath)
 		destFile := filepath.Join(targetPath, filePath)
 
-		if err := d.copyFile(sourceFile, destFile); err != nil {
+		if err := utils.CopyFile(sourceFile, destFile); err != nil {
 			return fmt.Errorf("failed to copy file %s: %w", filePath, err)
 		}
 	}
@@ -151,54 +151,6 @@ func (d *LocalDestination) clearExistingFiles(targetPath string) error {
 		if err := os.RemoveAll(path); err != nil {
 			return fmt.Errorf("failed to remove %s: %w", path, err)
 		}
-	}
-
-	return nil
-}
-
-func (d *LocalDestination) copyFile(src, dst string) error {
-	// Open source file
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer sourceFile.Close()
-
-	// Get source file info for permissions
-	sourceInfo, err := sourceFile.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to stat source file: %w", err)
-	}
-
-	// Create destination directory
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	// If destination file exists and is readonly, make it writable first
-	if destInfo, err := os.Stat(dst); err == nil {
-		if destInfo.Mode().Perm()&0200 == 0 { // Check if not writable
-			if err := os.Chmod(dst, 0644); err != nil {
-				return fmt.Errorf("failed to make destination writable: %w", err)
-			}
-		}
-	}
-
-	// Create destination file
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destFile.Close()
-
-	// Copy contents
-	if _, err := io.Copy(destFile, sourceFile); err != nil {
-		return fmt.Errorf("failed to copy file contents: %w", err)
-	}
-
-	// Restore original permissions
-	if err := os.Chmod(dst, sourceInfo.Mode().Perm()); err != nil {
-		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
 
 	return nil
@@ -301,9 +253,14 @@ func (d *LocalDestination) ListSnapshots() ([]*types.SnapshotInfo, error) {
 		message, _ := entry["message"].(string)
 		fileCount, _ := entry["fileCount"].(float64)
 
+		parsedTimestamp, err := parseTimestamp(timestamp)
+		if err != nil {
+			return nil, err
+		}
+
 		snapshots = append(snapshots, &types.SnapshotInfo{
 			ID:        id,
-			Timestamp: parseTimestamp(timestamp),
+			Timestamp: parsedTimestamp,
 			Message:   message,
 			FileCount: int(fileCount),
 		})
@@ -312,9 +269,12 @@ func (d *LocalDestination) ListSnapshots() ([]*types.SnapshotInfo, error) {
 	return snapshots, nil
 }
 
-func parseTimestamp(s string) time.Time {
-	t, _ := time.Parse(time.RFC3339, s)
-	return t
+func parseTimestamp(s string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse timestamp %q: %w", s, err)
+	}
+	return t, nil
 }
 
 // Restore restores files from a snapshot to the target path
@@ -411,7 +371,7 @@ func (d *LocalDestination) Restore(snapshotID string, targetPath string) error {
 
 		// Copy file
 		targetFile := filepath.Join(targetPath, relativePath)
-		if err := d.copyFile(path, targetFile); err != nil {
+		if err := utils.CopyFile(path, targetFile); err != nil {
 			return fmt.Errorf("failed to copy file %s: %w", relativePath, err)
 		}
 

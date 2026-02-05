@@ -47,7 +47,12 @@ func runPrune(dryRun bool) error {
 		fmt.Println("❌ Retention policy is not enabled in configuration.")
 		fmt.Println()
 		fmt.Println("To enable retention policy, edit your config file:")
-		fmt.Printf("  %s\n", config.DefaultConfigPath())
+		confPath, confErr := config.ConfigPath()
+		if confErr != nil {
+			fmt.Printf("  (config path unavailable: %v)\n", confErr)
+		} else {
+			fmt.Printf("  %s\n", confPath)
+		}
 		fmt.Println()
 		fmt.Println("Add a retention section like this:")
 		fmt.Println("  retention:")

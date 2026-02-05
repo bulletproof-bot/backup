@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bulletproof-bot/backup/internal/types"
+	"github.com/bulletproof-bot/backup/internal/utils"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -262,44 +263,9 @@ func (d *GitDestination) syncFiles(sourcePath, destPath string, snapshot *types.
 		sourceFile := filepath.Join(sourcePath, filePath)
 		destFile := filepath.Join(destPath, filePath)
 
-		if err := copyFileGit(sourceFile, destFile); err != nil {
+		if err := utils.CopyFile(sourceFile, destFile); err != nil {
 			return fmt.Errorf("failed to copy file %s: %w", filePath, err)
 		}
-	}
-
-	return nil
-}
-
-func copyFileGit(src, dst string) error {
-	// Read source file
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return fmt.Errorf("failed to read source file: %w", err)
-	}
-
-	// Get source file info for permissions
-	sourceInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat source file: %w", err)
-	}
-
-	// Create destination directory
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	// If destination file exists and is readonly, make it writable first
-	if destInfo, err := os.Stat(dst); err == nil {
-		if destInfo.Mode().Perm()&0200 == 0 { // Check if not writable
-			if err := os.Chmod(dst, 0644); err != nil {
-				return fmt.Errorf("failed to make destination writable: %w", err)
-			}
-		}
-	}
-
-	// Write destination file with original permissions
-	if err := os.WriteFile(dst, data, sourceInfo.Mode().Perm()); err != nil {
-		return fmt.Errorf("failed to write destination file: %w", err)
 	}
 
 	return nil
@@ -491,15 +457,20 @@ func (d *GitDestination) Restore(snapshotID string, targetPath string) error {
 
 		// Copy file
 		destFile := filepath.Join(targetPath, relativePath)
-		return copyFileGit(path, destFile)
+		return utils.CopyFile(path, destFile)
 	})
 
 	// Checkout back to original branch before returning
 	if originalBranch.IsBranch() {
 		if checkoutErr := worktree.Checkout(&git.CheckoutOptions{
 			Branch: originalBranch,
-		}); checkoutErr != nil && err == nil {
-			err = fmt.Errorf("failed to checkout back to original branch: %w", checkoutErr)
+		}); checkoutErr != nil {
+			if err != nil {
+				// Both operations failed - chain errors
+				err = fmt.Errorf("restore failed: %w (also failed to checkout original branch: %v)", err, checkoutErr)
+			} else {
+				err = fmt.Errorf("failed to checkout back to original branch: %w", checkoutErr)
+			}
 		}
 	}
 

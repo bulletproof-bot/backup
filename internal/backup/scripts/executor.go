@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/bulletproof-bot/backup/internal/utils"
 )
 
 // ScriptConfig represents a single script configuration
@@ -161,28 +163,13 @@ func CopyExportsToSnapshot(exportsDir, snapshotPath string) error {
 				return fmt.Errorf("failed to copy exports subdirectory: %w", err)
 			}
 		} else {
-			if err := copyFile(srcPath, dstPath); err != nil {
+			if err := utils.CopyFile(srcPath, dstPath); err != nil {
 				return fmt.Errorf("failed to copy exports file: %w", err)
 			}
 		}
 	}
 
 	return nil
-}
-
-// copyFile copies a single file
-func copyFile(src, dst string) error {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(dst, data, srcInfo.Mode().Perm())
 }
 
 // copyDir recursively copies a directory
@@ -205,7 +192,7 @@ func copyDir(src, dst string) error {
 				return err
 			}
 		} else {
-			if err := copyFile(srcPath, dstPath); err != nil {
+			if err := utils.CopyFile(srcPath, dstPath); err != nil {
 				return err
 			}
 		}
@@ -232,7 +219,7 @@ func CopyConfigToSnapshot(configPath, snapshotPath string) error {
 
 	// Copy config.yaml
 	dstPath := filepath.Join(bulletproofDir, "config.yaml")
-	if err := copyFile(configPath, dstPath); err != nil {
+	if err := utils.CopyFile(configPath, dstPath); err != nil {
 		return fmt.Errorf("failed to copy config file: %w", err)
 	}
 

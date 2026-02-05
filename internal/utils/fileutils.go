@@ -82,7 +82,7 @@ func CopyDirectory(src, dst string, exclude []string) error {
 				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
 			}
 		} else {
-			if err := copyFile(path, dstPath, info.Mode()); err != nil {
+			if err := CopyFile(path, dstPath); err != nil {
 				return fmt.Errorf("failed to copy file %s: %w", relPath, err)
 			}
 		}
@@ -91,25 +91,51 @@ func CopyDirectory(src, dst string, exclude []string) error {
 	})
 }
 
-// copyFile copies a single file from src to dst
-func copyFile(src, dst string, mode os.FileMode) error {
+// CopyFile copies a file from src to dst, preserving permissions and handling readonly files.
+// This is the consolidated implementation used throughout the codebase.
+func CopyFile(src, dst string) error {
 	// Open source file
-	srcFile, err := os.Open(src)
+	sourceFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer srcFile.Close()
+	defer sourceFile.Close()
+
+	// Get source file info for permissions
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+
+	// Create destination directory
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// If destination file exists and is readonly, make it writable first
+	if destInfo, statErr := os.Stat(dst); statErr == nil {
+		if destInfo.Mode().Perm()&0200 == 0 { // Check if not writable
+			if chmodErr := os.Chmod(dst, 0644); chmodErr != nil {
+				return fmt.Errorf("failed to make destination writable: %w", chmodErr)
+			}
+		}
+	}
 
 	// Create destination file
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	destFile, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dstFile.Close()
+	defer destFile.Close()
 
-	// Copy contents
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
+	// Copy contents (streaming for efficiency with large files)
+	if _, err := io.Copy(destFile, sourceFile); err != nil {
 		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	// Restore original permissions
+	if err := os.Chmod(dst, sourceInfo.Mode().Perm()); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
 
 	return nil
