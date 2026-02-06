@@ -1,0 +1,104 @@
+version: 2
+
+before:
+  hooks:
+    # Run tests before building
+    - go test ./...
+    # Format check
+    - go fmt ./...
+    # Vet check
+    - go vet ./...
+
+builds:
+  - id: bulletproof
+    main: ./cmd/bulletproof
+    binary: bulletproof
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Set version info at build time
+    ldflags:
+      - -s -w
+      - -X github.com/bulletproof-bot/backup/internal/version.Version={{.Version}}
+      - -X github.com/bulletproof-bot/backup/internal/version.GitCommit={{.ShortCommit}}
+      - -X github.com/bulletproof-bot/backup/internal/version.BuildDate={{.Date}}
+
+archives:
+  - id: bulletproof
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - 'merge conflict'
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: bulletproof-bot
+    name: backup
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Bulletproof Backup {{ .Tag }}
+
+    Install with:
+    ```bash
+    # macOS (Intel)
+    curl -L https://github.com/bulletproof-bot/backup/releases/download/{{ .Tag }}/bulletproof_{{ .Tag }}_darwin_amd64.tar.gz | tar xz
+    sudo mv bulletproof /usr/local/bin/
+
+    # macOS (Apple Silicon)
+    curl -L https://github.com/bulletproof-bot/backup/releases/download/{{ .Tag }}/bulletproof_{{ .Tag }}_darwin_arm64.tar.gz | tar xz
+    sudo mv bulletproof /usr/local/bin/
+
+    # Linux
+    curl -L https://github.com/bulletproof-bot/backup/releases/download/{{ .Tag }}/bulletproof_{{ .Tag }}_linux_amd64.tar.gz | tar xz
+    sudo mv bulletproof /usr/local/bin/
+
+    # Windows
+    # Download the .zip file and extract bulletproof.exe to your PATH
+    ```
