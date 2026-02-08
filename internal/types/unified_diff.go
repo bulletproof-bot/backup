@@ -198,13 +198,6 @@ func generateUnifiedDiff(fromContent, toContent, path string) string {
 func generateHunks(fromLines, toLines []string) []string {
 	const contextLines = 3 // Number of context lines to show
 
-	// Simple diff: find matching and non-matching sections
-	type change struct {
-		fromStart, fromCount int
-		toStart, toCount     int
-		lines                []string // Lines with +/- prefixes
-	}
-
 	var hunks []string
 	var currentHunk []string
 	var hunkFromStart, hunkToStart int

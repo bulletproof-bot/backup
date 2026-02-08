@@ -769,7 +769,7 @@ func (e *BackupEngine) saveMultiSource(sources []string, snapshot *types.Snapsho
 	for _, src := range sources {
 		base := filepath.Base(src)
 		if existing, ok := basenames[base]; ok {
-			return fmt.Errorf("duplicate source basenames: %s and %s both have basename %q - cannot determine correct source for files", existing, src, base)
+			return fmt.Errorf("source directories %s and %s share the same basename %q; multi-source backups use the directory basename as a prefix to organize files, so each source must have a unique basename (rename or symlink one of the directories to resolve this)", existing, src, base)
 		}
 		basenames[base] = src
 	}

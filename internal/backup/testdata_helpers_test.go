@@ -258,35 +258,12 @@ func (h *testDataHelper) assertFileNotExists(path string) {
 	}
 }
 
-// assertFileContent fails the test if file content doesn't match
-func (h *testDataHelper) assertFileContent(path string, expected string) {
-	actual := h.readFile(path)
-	if actual != expected {
-		h.t.Errorf("File content mismatch for %s\nExpected:\n%s\nActual:\n%s", path, expected, actual)
-	}
-}
-
 // assertFileContains fails the test if file doesn't contain substring
 func (h *testDataHelper) assertFileContains(path string, substring string) {
 	content := h.readFile(path)
 	if !contains(content, substring) {
 		h.t.Errorf("File %s doesn't contain expected substring: %s", path, substring)
 	}
-}
-
-// countFiles counts files in a directory (recursive)
-func (h *testDataHelper) countFiles(dir string) int {
-	count := 0
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			count++
-		}
-		return nil
-	})
-	return count
 }
 
 // listFiles lists all files in a directory (recursive)
@@ -303,25 +280,6 @@ func (h *testDataHelper) listFiles(dir string) []string {
 		return nil
 	})
 	return files
-}
-
-// createGraphMemoryExport simulates a graph database export
-func (h *testDataHelper) createGraphMemoryExport(exportDir string) {
-	if err := os.MkdirAll(exportDir, 0755); err != nil {
-		h.t.Fatalf("Failed to create export directory: %v", err)
-	}
-
-	graphData := map[string]interface{}{
-		"nodes": []map[string]interface{}{
-			{"id": "user_1", "type": "user", "name": "Alice"},
-			{"id": "concept_1", "type": "concept", "name": "AI Safety"},
-		},
-		"edges": []map[string]interface{}{
-			{"from": "user_1", "to": "concept_1", "type": "interested_in"},
-		},
-	}
-
-	h.writeJSON(filepath.Join(exportDir, "graph_memory.json"), graphData)
 }
 
 // verifyGraphMemoryImport checks if graph data was correctly imported

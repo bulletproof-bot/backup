@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,10 +67,10 @@ type AnalyticsConfig struct {
 // RetentionPolicy controls snapshot retention and pruning
 type RetentionPolicy struct {
 	Enabled     bool `yaml:"enabled"`
-	KeepLast    int  `yaml:"keep_last"`    // Keep last N snapshots
-	KeepDaily   int  `yaml:"keep_daily"`   // Keep one snapshot per day for N days
-	KeepWeekly  int  `yaml:"keep_weekly"`  // Keep one snapshot per week for N weeks
-	KeepMonthly int  `yaml:"keep_monthly"` // Keep one snapshot per month for N months
+	KeepLast    int  `yaml:"keep_last,omitempty"`    // Keep last N snapshots
+	KeepDaily   int  `yaml:"keep_daily,omitempty"`   // Keep one snapshot per day for N days
+	KeepWeekly  int  `yaml:"keep_weekly,omitempty"`  // Keep one snapshot per week for N weeks
+	KeepMonthly int  `yaml:"keep_monthly,omitempty"` // Keep one snapshot per month for N months
 }
 
 // IsGit returns true if the destination is a git repository
@@ -199,7 +200,20 @@ func Load() (*Config, error) {
 	return &config, nil
 }
 
-// Save saves the configuration to the config file
+// saveConfig is the serialization wrapper that adds a version field
+type saveConfig struct {
+	Version      string             `yaml:"version"`
+	OpenclawPath string             `yaml:"openclaw_path,omitempty"`
+	Sources      []string           `yaml:"sources,omitempty"`
+	Destination  *DestinationConfig `yaml:"destination,omitempty"`
+	Schedule     ScheduleConfig     `yaml:"schedule"`
+	Options      BackupOptions      `yaml:"options"`
+	Scripts      *ScriptsConfig     `yaml:"scripts,omitempty"`
+	Analytics    AnalyticsConfig    `yaml:"analytics"`
+	Retention    *RetentionPolicy   `yaml:"retention,omitempty"`
+}
+
+// Save saves the configuration to the config file using yaml.v3 marshaling
 func (c *Config) Save() error {
 	configPath, err := ConfigPath()
 	if err != nil {
@@ -212,114 +226,76 @@ func (c *Config) Save() error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Build YAML with comments
-	var builder strings.Builder
-	builder.WriteString("# Bulletproof configuration\n")
-	builder.WriteString("# https://github.com/bulletproof-bot/backup\n")
-	builder.WriteString("version: \"" + ConfigVersion + "\"\n")
-	builder.WriteString("\n")
-
-	if c.OpenclawPath != "" {
-		builder.WriteString("# Path to OpenClaw installation (deprecated, use sources instead)\n")
-		builder.WriteString("openclaw_path: \"" + c.OpenclawPath + "\"\n")
-		builder.WriteString("\n")
+	sc := saveConfig{
+		Version:      ConfigVersion,
+		OpenclawPath: c.OpenclawPath,
+		Sources:      c.Sources,
+		Destination:  c.Destination,
+		Schedule:     c.Schedule,
+		Options:      c.Options,
+		Analytics:    c.Analytics,
 	}
 
-	if len(c.Sources) > 0 {
-		builder.WriteString("# Source paths to back up (supports glob patterns)\n")
-		builder.WriteString("sources:\n")
-		for _, source := range c.Sources {
-			builder.WriteString("  - \"" + source + "\"\n")
-		}
-		builder.WriteString("\n")
-	}
-
-	if c.Destination != nil {
-		builder.WriteString("# Backup destination\n")
-		builder.WriteString("destination:\n")
-		builder.WriteString("  type: \"" + c.Destination.Type + "\"\n")
-		builder.WriteString("  path: \"" + c.Destination.Path + "\"\n")
-		builder.WriteString("\n")
-	}
-
-	builder.WriteString("# Backup schedule\n")
-	builder.WriteString("schedule:\n")
-	builder.WriteString("  enabled: " + strconv.FormatBool(c.Schedule.Enabled) + "\n")
-	builder.WriteString("  time: \"" + c.Schedule.Time + "\"\n")
-	builder.WriteString("\n")
-
-	builder.WriteString("# Backup options\n")
-	builder.WriteString("options:\n")
-	builder.WriteString("  include_auth: " + strconv.FormatBool(c.Options.IncludeAuth) + "\n")
-	if len(c.Options.Exclude) > 0 {
-		builder.WriteString("  exclude:\n")
-		for _, pattern := range c.Options.Exclude {
-			builder.WriteString("    - \"" + pattern + "\"\n")
-		}
-	}
-
-	// Add scripts if configured
+	// Only include scripts section if any scripts are configured
 	if len(c.Scripts.PreBackup) > 0 || len(c.Scripts.PostRestore) > 0 {
-		builder.WriteString("\n# Script execution\n")
-		builder.WriteString("scripts:\n")
-
-		if len(c.Scripts.PreBackup) > 0 {
-			builder.WriteString("  pre_backup:\n")
-			for _, script := range c.Scripts.PreBackup {
-				builder.WriteString("    - name: \"" + script.Name + "\"\n")
-				builder.WriteString("      command: \"" + script.Command + "\"\n")
-				if script.Timeout > 0 {
-					builder.WriteString("      timeout: " + strconv.Itoa(script.Timeout) + "\n")
-				}
-			}
-		}
-
-		if len(c.Scripts.PostRestore) > 0 {
-			builder.WriteString("  post_restore:\n")
-			for _, script := range c.Scripts.PostRestore {
-				builder.WriteString("    - name: \"" + script.Name + "\"\n")
-				builder.WriteString("      command: \"" + script.Command + "\"\n")
-				if script.Timeout > 0 {
-					builder.WriteString("      timeout: " + strconv.Itoa(script.Timeout) + "\n")
-				}
-			}
-		}
+		sc.Scripts = &c.Scripts
 	}
 
-	// Add analytics configuration
-	builder.WriteString("\n# Anonymous usage analytics\n")
-	builder.WriteString("analytics:\n")
-	builder.WriteString("  enabled: " + strconv.FormatBool(c.Analytics.Enabled) + "\n")
-	if c.Analytics.UserID != "" {
-		builder.WriteString("  user_id: \"" + c.Analytics.UserID + "\"\n")
-	}
-	builder.WriteString("  notice_shown: " + strconv.FormatBool(c.Analytics.NoticeShown) + "\n")
-
-	// Add retention policy configuration
+	// Only include retention section if any retention settings are configured
 	if c.Retention.Enabled || c.Retention.KeepLast > 0 || c.Retention.KeepDaily > 0 || c.Retention.KeepWeekly > 0 || c.Retention.KeepMonthly > 0 {
-		builder.WriteString("\n# Snapshot retention policy\n")
-		builder.WriteString("retention:\n")
-		builder.WriteString("  enabled: " + strconv.FormatBool(c.Retention.Enabled) + "\n")
-		if c.Retention.KeepLast > 0 {
-			builder.WriteString("  keep_last: " + strconv.Itoa(c.Retention.KeepLast) + "\n")
-		}
-		if c.Retention.KeepDaily > 0 {
-			builder.WriteString("  keep_daily: " + strconv.Itoa(c.Retention.KeepDaily) + "\n")
-		}
-		if c.Retention.KeepWeekly > 0 {
-			builder.WriteString("  keep_weekly: " + strconv.Itoa(c.Retention.KeepWeekly) + "\n")
-		}
-		if c.Retention.KeepMonthly > 0 {
-			builder.WriteString("  keep_monthly: " + strconv.Itoa(c.Retention.KeepMonthly) + "\n")
-		}
+		sc.Retention = &c.Retention
 	}
 
-	// Write to file
-	if err := os.WriteFile(configPath, []byte(builder.String()), 0644); err != nil {
+	// Marshal to yaml.Node for comment support
+	var node yaml.Node
+	if err := node.Encode(sc); err != nil {
+		return fmt.Errorf("failed to encode config: %w", err)
+	}
+
+	// Add section comments
+	node.HeadComment = "Bulletproof configuration\nhttps://github.com/bulletproof-bot/backup"
+	addConfigComments(&node)
+
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&node); err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return fmt.Errorf("failed to finalize config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
+}
+
+// addConfigComments annotates YAML mapping keys with descriptive comments
+func addConfigComments(node *yaml.Node) {
+	if node.Kind != yaml.MappingNode {
+		return
+	}
+
+	comments := map[string]string{
+		"openclaw_path": "Path to OpenClaw installation (deprecated, use sources instead)",
+		"sources":       "Source paths to back up (supports glob patterns)",
+		"destination":   "Backup destination",
+		"schedule":      "Backup schedule",
+		"options":       "Backup options",
+		"scripts":       "Script execution",
+		"analytics":     "Anonymous usage analytics",
+		"retention":     "Snapshot retention policy",
+	}
+
+	for i := 0; i < len(node.Content)-1; i += 2 {
+		key := node.Content[i]
+		if comment, ok := comments[key.Value]; ok {
+			key.HeadComment = comment
+		}
+	}
 }
 
 // CopyWith returns a new Config with updated values
@@ -482,13 +458,9 @@ func (c *Config) Validate() error {
 			}
 
 			// Check read permissions
-			testPath := filepath.Join(path, ".bulletproof_test_read")
-			entries, err := os.ReadDir(path)
-			if err != nil {
+			if _, err := os.ReadDir(path); err != nil {
 				return errors.PermissionDenied("read source directory", path, err)
 			}
-			_ = entries  // suppress unused variable warning
-			_ = testPath // suppress unused variable warning
 		}
 	}
 

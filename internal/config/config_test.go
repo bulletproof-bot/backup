@@ -95,6 +95,72 @@ func TestSave_Load_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestSave_Load_RoundTrip_SpecialChars(t *testing.T) {
+	tempDir := t.TempDir()
+	originalPath := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalPath)
+
+	cfg := &Config{
+		OpenclawPath: `/test/path with spaces/openclaw: "quoted"`,
+		Destination: &DestinationConfig{
+			Type: "local",
+			Path: `/test/backup/special chars: {glob}`,
+		},
+		Schedule: ScheduleConfig{
+			Enabled: true,
+			Time:    "02:30",
+		},
+		Options: BackupOptions{
+			IncludeAuth: false,
+			Exclude:     []string{"*.tmp", `path with "quotes"`, "colon: value"},
+		},
+		Scripts: ScriptsConfig{
+			PreBackup: []ScriptConfig{
+				{Name: "export db", Command: `echo "hello: world"`, Timeout: 30},
+			},
+		},
+		Retention: RetentionPolicy{
+			Enabled:  true,
+			KeepLast: 5,
+		},
+	}
+
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() failed: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	if loaded.OpenclawPath != cfg.OpenclawPath {
+		t.Errorf("OpenclawPath: got %q, want %q", loaded.OpenclawPath, cfg.OpenclawPath)
+	}
+	if loaded.Destination.Path != cfg.Destination.Path {
+		t.Errorf("Destination.Path: got %q, want %q", loaded.Destination.Path, cfg.Destination.Path)
+	}
+	if len(loaded.Options.Exclude) != len(cfg.Options.Exclude) {
+		t.Fatalf("Exclude count: got %d, want %d", len(loaded.Options.Exclude), len(cfg.Options.Exclude))
+	}
+	for i, want := range cfg.Options.Exclude {
+		if loaded.Options.Exclude[i] != want {
+			t.Errorf("Exclude[%d]: got %q, want %q", i, loaded.Options.Exclude[i], want)
+		}
+	}
+	if len(loaded.Scripts.PreBackup) != 1 {
+		t.Fatalf("PreBackup script count: got %d, want 1", len(loaded.Scripts.PreBackup))
+	}
+	if loaded.Scripts.PreBackup[0].Command != cfg.Scripts.PreBackup[0].Command {
+		t.Errorf("PreBackup command: got %q, want %q", loaded.Scripts.PreBackup[0].Command, cfg.Scripts.PreBackup[0].Command)
+	}
+	if !loaded.Retention.Enabled || loaded.Retention.KeepLast != 5 {
+		t.Errorf("Retention: got enabled=%v keep_last=%d, want enabled=true keep_last=5",
+			loaded.Retention.Enabled, loaded.Retention.KeepLast)
+	}
+}
+
 func TestScheduleConfig_HourMinute(t *testing.T) {
 	tests := []struct {
 		name       string
